@@ -1,0 +1,198 @@
+---
+title: Data Model
+description: The three-layer storage schema — WorklogEvent, WorklogEntry, and SyncState.
+---
+
+## Three layers
+
+```
+events.ndjson      →  WorklogEvent   (raw, append-only, fast to write)
+entries.ndjson     →  WorklogEntry   (consolidated, AI-improvable)
+sync-state.json    →  SyncState      (tracks what was sent to providers)
+```
+
+Data flows one direction: Events → Entries → SyncState. Events are never modified.
+Entries can be updated (e.g. summary improved by AI). SyncState is updated on sync.
+
+---
+
+## WorklogEvent
+
+Raw event. Written by `tt add`, MCP `worklog_add`, or git hooks.
+
+```typescript
+interface WorklogEvent {
+  id: string;               // ULID
+  timestamp: string;        // ISO 8601
+  source: WorklogSource;    // who created it
+  kind: WorklogKind;        // type of work
+  description: string;      // what was done (can be messy)
+  durationMinutes?: number; // optional time spent
+  commitSha?: string;       // optional git commit
+  branch?: string;          // current git branch
+  taskRef?: string;         // extracted task reference
+  tags?: string[];
+  metadata?: Record<string, unknown>;
+}
+```
+
+### WorklogSource
+
+```typescript
+type WorklogSource = "manual" | "ai" | "git" | "system";
+```
+
+### WorklogKind
+
+```typescript
+type WorklogKind =
+  | "investigation"
+  | "implementation"
+  | "bugfix"
+  | "refactor"
+  | "review"
+  | "documentation"
+  | "meeting"
+  | "support";
+```
+
+### Storage format
+
+Events are stored as NDJSON (one JSON object per line, newline-delimited):
+
+```jsonl
+{"id":"01JRZXAAA...","timestamp":"2026-04-14T09:00:00.000Z","source":"manual","kind":"investigation","description":"investigated auth timeout","branch":"CU-abc123/fix-auth","taskRef":"CU-abc123"}
+{"id":"01JRZXBBB...","timestamp":"2026-04-14T10:15:00.000Z","source":"manual","kind":"bugfix","description":"fixed race condition in token refresh","branch":"CU-abc123/fix-auth","taskRef":"CU-abc123"}
+```
+
+Events are **never deleted or modified**. This is intentional — the append-only log is the
+source of truth.
+
+---
+
+## WorklogEntry
+
+Consolidated entry. Written by `tt consolidate`. Can be updated with an improved summary.
+
+```typescript
+interface WorklogEntry {
+  id: string;                   // ULID
+  createdAt: string;            // ISO 8601
+  updatedAt: string;            // ISO 8601
+  eventIds: string[];           // IDs of source events
+  summary: string;              // consolidated description (AI-improvable)
+  kind: WorklogKind;            // dominant kind across events
+  statusHint: WorklogStatusHint;
+  totalMinutes: number;         // sum of event durations
+  taskRef?: string;
+  branch?: string;
+  commits: string[];            // commit SHAs linked via tt attach
+  syncMode: SyncMode;
+  syncStatus: SyncStatus;
+  tags?: string[];
+  metadata?: Record<string, unknown>;
+}
+```
+
+### WorklogStatusHint
+
+```typescript
+type WorklogStatusHint = "planned" | "in_progress" | "blocked" | "done";
+```
+
+### SyncMode
+
+```typescript
+type SyncMode = "comment" | "subtask" | "task" | "skip";
+```
+
+### SyncStatus
+
+```typescript
+type SyncStatus = "pending" | "planned" | "synced" | "failed" | "ignored";
+```
+
+### Storage format
+
+Same NDJSON format as events:
+
+```jsonl
+{"id":"01JRZXCCC...","createdAt":"2026-04-14T10:30:00.000Z","updatedAt":"2026-04-14T10:30:00.000Z","eventIds":["01JRZXAAA...","01JRZXBBB..."],"summary":"Fixed auth timeout — resolved race condition in token refresh","kind":"bugfix","statusHint":"done","totalMinutes":75,"taskRef":"CU-abc123","branch":"CU-abc123/fix-auth","commits":["abc123def456"],"syncMode":"comment","syncStatus":"pending","tags":[]}
+```
+
+---
+
+## SyncState
+
+Tracks sync results per entry. Written by `tt sync`. Prevents duplicate syncs.
+
+```typescript
+interface SyncState {
+  lastSyncAt?: string;
+  entries: {
+    [entryId: string]: {
+      syncStatus: SyncStatus;
+      syncMode: SyncMode;
+      providerRef?: string;   // e.g. ClickUp task ID
+      syncedAt?: string;
+      error?: string;
+    };
+  };
+}
+```
+
+### Storage format
+
+Single JSON file (not NDJSON):
+
+```json title=".tasktrace/sync-state.json"
+{
+  "lastSyncAt": "2026-04-14T17:00:00.000Z",
+  "entries": {
+    "01JRZXCCC...": {
+      "syncStatus": "synced",
+      "syncMode": "comment",
+      "providerRef": "CU-abc123",
+      "syncedAt": "2026-04-14T17:00:00.000Z"
+    }
+  }
+}
+```
+
+---
+
+## IDs: ULID
+
+All record IDs use [ULID](https://github.com/ulid/spec) — Universally Unique Lexicographically
+Sortable Identifiers.
+
+- 26 characters, URL-safe
+- Sortable by time (prefix is timestamp)
+- Collision-resistant (80 bits of random)
+- No coordination needed
+
+```
+01JRZXABCDEFGH123456789000
+└─── time ──┘└── random ──┘
+```
+
+This means records in NDJSON files are naturally sorted by creation time.
+
+---
+
+## Zod schemas
+
+Every interface has a corresponding Zod schema for runtime validation:
+
+```typescript
+import { WorklogEventSchema, WorklogEntrySchema, SyncStateSchema } from "@tasktrace/core";
+
+// Parse + validate from unknown JSON
+const event = WorklogEventSchema.parse(rawJson);
+
+// Safe parse (returns { success, data, error })
+const result = WorklogEntrySchema.safeParse(rawJson);
+```
+
+All storage reads go through Zod validation — invalid records are rejected at read time,
+not at usage time.

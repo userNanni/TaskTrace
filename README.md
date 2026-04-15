@@ -453,14 +453,14 @@ Developed with Bun, runs on Node. Conditional exports resolve TypeScript source 
 
 ## Roadmap
 
-### v0.1 — Local worklog engine
+### ✅ v0.1 — Local worklog engine
 
 - `@tasktrace/core` — full implementation
 - `@tasktrace/cli` — init, add, log, status, consolidate, attach
 - `@tasktrace/mcp-server` — worklog + query tools
 - Unit and integration tests
 
-### v0.2 — ClickUp sync
+### ✅ v0.2 — ClickUp sync
 
 - `@tasktrace/adapter-clickup`
 - `tt plan` and `tt sync` commands
@@ -471,7 +471,6 @@ Developed with Bun, runs on Node. Conditional exports resolve TypeScript source 
 
 - Adapters: Linear, Jira
 - Standalone binary (`bun build --compile`)
-- GitHub Actions CI/CD
 - npm publish automation
 
 ---

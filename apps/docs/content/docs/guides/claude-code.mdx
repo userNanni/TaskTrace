@@ -1,0 +1,234 @@
+---
+title: Claude Code setup
+description: Configure TaskTrace as an MCP server in Claude Code for automatic worklog capture during AI coding sessions.
+---
+
+import { Steps, Step } from "fumadocs-ui/components/steps";
+import { Callout } from "fumadocs-ui/components/callout";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+
+## Overview
+
+When TaskTrace runs as an MCP server in Claude Code, the AI agent automatically:
+
+- Logs work events as it completes steps
+- Attaches commits after making changes
+- Consolidates events at session end
+- Reports a summary of logged work
+
+You get a complete worklog of every AI session without lifting a finger.
+
+---
+
+## Prerequisites
+
+1. [Claude Code](https://claude.ai/code) installed
+2. `@tasktrace/cli` and `@tasktrace/mcp-server` installed globally
+3. Project initialized with `tt init`
+
+---
+
+## MCP server configuration
+
+<Steps>
+<Step>
+
+### Add to Claude Code MCP config
+
+<Tabs items={["Project-level (recommended)", "Global"]}>
+<Tab value="Project-level (recommended)">
+
+Create or edit `.claude/mcp_servers.json` in your project root:
+
+```json title=".claude/mcp_servers.json"
+{
+  "mcpServers": {
+    "tasktrace": {
+      "command": "tasktrace-mcp",
+      "env": {
+        "TASKTRACE_PROJECT_DIR": "${workspaceFolder}",
+        "TASKTRACE_CLICKUP_API_KEY": "${env:TASKTRACE_CLICKUP_API_KEY}"
+      }
+    }
+  }
+}
+```
+
+</Tab>
+<Tab value="Global">
+
+Edit `~/.claude/mcp_servers.json`:
+
+```json title="~/.claude/mcp_servers.json"
+{
+  "mcpServers": {
+    "tasktrace": {
+      "command": "tasktrace-mcp",
+      "env": {
+        "TASKTRACE_PROJECT_DIR": "/absolute/path/to/your/project"
+      }
+    }
+  }
+}
+```
+
+</Tab>
+</Tabs>
+
+</Step>
+<Step>
+
+### Verify MCP connection
+
+In Claude Code, check that the `tasktrace` server appears in the MCP status panel.
+Or ask Claude:
+
+> "Call worklog_status and tell me the current state."
+
+Claude should respond with current event/entry counts.
+
+</Step>
+<Step>
+
+### Add instructions to CLAUDE.md
+
+```markdown title="CLAUDE.md"
+## TaskTrace worklog
+
+Log your work using the TaskTrace MCP tools as you go:
+
+- Use `worklog_add` after completing each meaningful unit of work
+  - `source` must always be `"ai"` for AI-created events
+  - Choose the right `kind`: investigation, implementation, bugfix, refactor, review, etc.
+- After every git commit, call `worklog_attach_commit`
+- At session end, call `worklog_consolidate` then `worklog_status`
+- Always tell the user how many entries were logged and what they covered
+- Never call sync commands — let the user review and sync manually
+```
+
+</Step>
+</Steps>
+
+---
+
+## How Claude uses TaskTrace
+
+With the above setup, Claude automatically logs work throughout a session:
+
+```
+User: "Fix the authentication timeout issue on CU-abc123"
+
+Claude:
+1. worklog_status()          → checks current state
+2. ... investigates code ...
+3. worklog_add("investigated auth timeout — identified race condition in token refresh", kind="investigation", durationMinutes=15)
+4. ... writes fix ...
+5. worklog_add("fixed race condition using read-write lock in TokenRefreshService", kind="bugfix", durationMinutes=30)
+6. git commit
+7. worklog_attach_commit()
+8. worklog_consolidate()
+9. worklog_status()
+
+→ "Done. Logged 2 events → 1 entry for CU-abc123 (45 min, bugfix). Run `tt sync` to send to ClickUp."
+```
+
+---
+
+## Recommended CLAUDE.md snippet
+
+Copy this into your project's `CLAUDE.md` for consistent agent behavior:
+
+```markdown
+## Worklog instructions (TaskTrace)
+
+You have access to TaskTrace MCP tools. Use them throughout this session:
+
+### When to log
+- After completing an investigation or research step
+- After implementing a feature, fix, or refactor
+- After writing tests or documentation
+- After code review
+- After any git commit
+
+### How to log
+```
+worklog_add(description="...", kind="...", source="ai", durationMinutes=N)
+```
+- Always use `source: "ai"`
+- Be specific: include what you changed and why
+- Estimate duration honestly
+
+### Session wrap-up
+At the end of every session:
+1. `worklog_consolidate()` — group events into entries
+2. `worklog_status()` — report to user
+3. Tell the user: "Logged X events → Y entries. Run `tt sync` to send to ClickUp."
+
+### Never
+- Call sync commands (user reviews first)
+- Skip logging because the change felt small
+```
+
+---
+
+## Example session output
+
+After a typical 1-hour session, Claude reports:
+
+```
+Session complete. Worklog summary:
+
+  Branch: CU-abc123/fix-auth-timeout
+  TaskRef: CU-abc123
+
+  Logged:
+  - investigated auth timeout — found race condition in TokenRefreshService (15 min)
+  - fixed race condition with read-write lock (30 min)
+  - added unit tests for concurrent refresh scenario (20 min)
+
+  Consolidated: 3 events → 1 entry (65 min · bugfix)
+  Status: pending sync
+
+  Run `tt sync` to send to ClickUp CU-abc123.
+```
+
+<Callout type="info">
+  The MCP server intentionally does not expose sync tools. All sync actions are user-initiated
+  so you always review what gets sent to your task manager.
+</Callout>
+
+---
+
+## Troubleshooting
+
+### MCP server not connecting
+
+```bash
+# Test the server directly
+TASKTRACE_PROJECT_DIR=/path/to/project tasktrace-mcp
+# Should start without errors
+```
+
+### "No project config found" error
+
+Make sure `TASKTRACE_PROJECT_DIR` points to a directory with `.tasktracerc.json`:
+
+```bash
+ls /path/to/project/.tasktracerc.json
+```
+
+If missing: `tt init` in that directory.
+
+### Events not appearing in `tt log`
+
+Check the storage directory:
+
+```bash
+cat .tasktrace/events.ndjson | tail -5
+```
+
+Events from Claude have `"source":"ai"` — filter for them:
+
+```bash
+cat .tasktrace/events.ndjson | jq 'select(.source == "ai")'
+```

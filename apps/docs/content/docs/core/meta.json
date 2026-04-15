@@ -1,0 +1,4 @@
+{
+  "title": "Core Package",
+  "pages": ["index", "data-model", "engine", "storage"]
+}

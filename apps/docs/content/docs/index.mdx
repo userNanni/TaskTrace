@@ -1,0 +1,175 @@
+---
+title: Overview
+description: Git-native developer worklog engine. Capture work, consolidate with AI agents, sync to task managers.
+---
+
+import { Card, Cards } from "fumadocs-ui/components/card";
+import { Callout } from "fumadocs-ui/components/callout";
+import { Steps, Step } from "fumadocs-ui/components/steps";
+
+## What is TaskTrace?
+
+TaskTrace sits between your git workflow and your task manager. It captures what you actually did,
+lets AI agents consolidate messy notes into clean entries, and syncs the result to ClickUp
+(Linear, Jira planned).
+
+**No existing tool does this end-to-end.** SDKs exist for ClickUp. Changelog generators exist.
+Time trackers exist. None combine:
+
+- Append-only worklog capture tied to branches and commits
+- AI-powered consolidation — via external agents, not baked in
+- Bidirectional task sync — create + update, not just update
+- Provider-agnostic adapter pattern — ClickUp today, anything tomorrow
+
+## Quick start
+
+<Steps>
+<Step>
+
+### Install the CLI
+
+```bash
+npm i -g @tasktrace/cli
+# or
+bun add -g @tasktrace/cli
+```
+
+</Step>
+<Step>
+
+### Initialize your project
+
+```bash
+cd your-project
+tt init
+```
+
+Creates `.tasktracerc.json`, `.tasktrace/` storage dir, and optionally installs git hooks.
+
+</Step>
+<Step>
+
+### Capture work events
+
+```bash
+tt add -d "investigated auth timeout" -k investigation
+tt add -d "fixed refresh token flow" -k bugfix
+```
+
+</Step>
+<Step>
+
+### Consolidate into entries
+
+```bash
+tt consolidate
+# ✔ 2 events → 1 entry  "Fixed auth timeout and refresh token flow"
+```
+
+</Step>
+<Step>
+
+### Link to git and sync
+
+```bash
+tt attach        # links HEAD commit to the latest entry
+tt plan          # preview what goes to ClickUp
+tt sync          # execute
+```
+
+</Step>
+</Steps>
+
+## How it works
+
+```
+1. You work normally
+
+2. Capture events (quick, messy, low friction)
+   $ tt add -d "investigated auth timeout" -k investigation
+   $ tt add -d "fixed refresh token flow" -k bugfix
+
+3. Consolidate (you or an AI agent)
+   $ tt consolidate
+   → Groups events by branch + taskRef into a clean WorklogEntry
+
+4. Link to git
+   $ tt attach
+   → Binds the entry to your latest commit SHA
+
+5. Sync to task manager
+   $ tt plan          → Preview payload (dry-run)
+   $ tt sync          → Execute (creates comment, subtask, or new task)
+```
+
+## Data model
+
+Three layers, from raw to polished:
+
+| Layer | File | Description |
+|---|---|---|
+| **Events** | `events.ndjson` | Raw, append-only, granular. Captured fast. |
+| **Entries** | `entries.ndjson` | Consolidated, AI-improvable summaries. |
+| **Sync State** | `sync-state.json` | Tracks what was sent. Prevents duplicates. |
+
+Events can be ugly and fast. Entries can be improved later by AI.
+Sync only works with entries — never raw noise.
+
+## Architecture
+
+```
+cli ──────────► core ◄──────────── mcp-server
+                 ▲
+adapter-clickup ─┘
+```
+
+**`@tasktrace/core`** has zero intra-monorepo dependencies.
+Everything else depends on core. Adapters implement a provider-agnostic interface.
+
+## Packages
+
+<Cards>
+  <Card
+    title="@tasktrace/core"
+    description="Engine: types, NDJSON storage, git integration, consolidation logic. Zod-validated."
+    href="/docs/core"
+  />
+  <Card
+    title="@tasktrace/cli"
+    description="Terminal commands: tt init, add, log, status, consolidate, attach, plan, sync."
+    href="/docs/cli"
+  />
+  <Card
+    title="@tasktrace/adapter-clickup"
+    description="ClickUp sync adapter. Implements TaskProviderAdapter. Native fetch, no extra deps."
+    href="/docs/adapters/clickup"
+  />
+  <Card
+    title="@tasktrace/mcp-server"
+    description="MCP server for AI agents. Stdio transport. Works with Claude Code, Cursor, etc."
+    href="/docs/mcp"
+  />
+</Cards>
+
+## AI integration philosophy
+
+<Callout type="info">
+  **AI is not in the runtime.** TaskTrace has zero LLM dependencies. No API keys required in core.
+</Callout>
+
+AI agents interact with TaskTrace through:
+- **CLI** (`--json` flag) — pipe `tt status --json` into your agent context
+- **MCP tools** — Claude Code and Cursor log work directly via `worklog_add`, etc.
+
+The agent improves events, consolidates them, classifies sync mode, and reviews the plan.
+TaskTrace works perfectly without AI. AI is a multiplier, not a requirement.
+
+## Design principles
+
+1. **Events are cheap, entries are valuable.** Capture fast, refine later.
+2. **AI improves, never blocks.** Everything works without AI.
+3. **Commit is the anchor.** Every meaningful entry links to a commit SHA.
+4. **Sync is explicit.** Always plan → review → apply. Never auto-publish.
+5. **Credentials stay out of repos.** Global config or env vars only.
+6. **Dual interface.** CLI and MCP are both first-class citizens.
+7. **Provider-agnostic core.** ClickUp today, anything tomorrow.

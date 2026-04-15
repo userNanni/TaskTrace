@@ -1,0 +1,4 @@
+{
+  "title": "CLI Reference",
+  "pages": ["index", "init", "add", "log", "status", "consolidate", "attach", "plan", "sync"]
+}

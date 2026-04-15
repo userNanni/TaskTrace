@@ -1,0 +1,273 @@
+---
+title: WorklogEngine
+description: The central class that drives all CLI commands and MCP tools.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+## Overview
+
+`WorklogEngine` is the main entry point for all TaskTrace operations. Both the CLI and the MCP
+server instantiate it; they do not call storage or git directly.
+
+```typescript
+import { WorklogEngine, FileStorageProvider, loadConfig } from "@tasktrace/core";
+
+const config = await loadConfig({ dir: "/path/to/project" });
+const storage = new FileStorageProvider(config.storage.dir);
+const engine = new WorklogEngine({ config, storage });
+```
+
+---
+
+## Constructor
+
+```typescript
+new WorklogEngine(options: {
+  config: TaskTraceConfig;
+  storage: StorageProvider;
+})
+```
+
+---
+
+## Methods
+
+### `addEvent(input)`
+
+Add a raw work event.
+
+```typescript
+async addEvent(input: AddEventInput): Promise<WorklogEvent>
+```
+
+```typescript
+interface AddEventInput {
+  description: string;
+  kind?: WorklogKind;        // default: config.defaults.kind
+  source?: WorklogSource;    // default: "manual"
+  durationMinutes?: number;
+  taskRef?: string;          // default: auto-detected from branch
+  tags?: string[];
+  metadata?: Record<string, unknown>;
+}
+```
+
+**Example:**
+
+```typescript
+const event = await engine.addEvent({
+  description: "fixed race condition in token refresh",
+  kind: "bugfix",
+  source: "manual",
+  durationMinutes: 45,
+});
+```
+
+---
+
+### `listEvents(filter?)`
+
+Read all events, optionally filtered.
+
+```typescript
+async listEvents(filter?: EventFilter): Promise<WorklogEvent[]>
+```
+
+```typescript
+interface EventFilter {
+  branch?: string;
+  taskRef?: string;
+  since?: string;      // ISO 8601
+  limit?: number;
+  consolidated?: boolean;  // true = only consolidated, false = only pending
+}
+```
+
+---
+
+### `consolidate(options?)`
+
+Group pending events into entries using the consolidation algorithm.
+
+```typescript
+async consolidate(options?: ConsolidateOptions): Promise<WorklogEntry[]>
+```
+
+```typescript
+interface ConsolidateOptions {
+  dryRun?: boolean;                // default: false
+  gapMinutes?: number;             // default: config.defaults.consolidationGapMinutes
+}
+```
+
+Returns the newly created entries. In `dryRun` mode, returns what *would* be created
+without writing anything.
+
+---
+
+### `listEntries(filter?)`
+
+Read all entries, optionally filtered.
+
+```typescript
+async listEntries(filter?: EntryFilter): Promise<WorklogEntry[]>
+```
+
+```typescript
+interface EntryFilter {
+  branch?: string;
+  taskRef?: string;
+  kind?: WorklogKind;
+  syncStatus?: SyncStatus;
+  since?: string;
+  limit?: number;
+}
+```
+
+---
+
+### `updateEntry(id, updates)`
+
+Update an existing entry (e.g. improved summary from AI).
+
+```typescript
+async updateEntry(
+  id: string,
+  updates: Partial<Pick<WorklogEntry, "summary" | "kind" | "statusHint" | "syncMode" | "tags" | "metadata">>
+): Promise<WorklogEntry>
+```
+
+**Example:**
+
+```typescript
+// AI agent improves the summary
+await engine.updateEntry("01JRZXABC...", {
+  summary: "Fixed race condition in token refresh — added mutex around concurrent refresh calls",
+});
+```
+
+---
+
+### `attachCommit(options?)`
+
+Link a commit SHA to an entry.
+
+```typescript
+async attachCommit(options?: {
+  sha?: string;      // default: HEAD
+  entryId?: string;  // default: latest entry
+}): Promise<WorklogEntry>
+```
+
+---
+
+### `detectTaskRef()`
+
+Parse the current branch name and extract a task reference using configured patterns.
+
+```typescript
+async detectTaskRef(): Promise<string | null>
+```
+
+Returns `null` if no pattern matches.
+
+---
+
+### `planSync()`
+
+Generate a sync plan without executing it.
+
+```typescript
+async planSync(): Promise<SyncPlan>
+```
+
+```typescript
+interface SyncPlan {
+  items: SyncPlanItem[];
+}
+
+interface SyncPlanItem {
+  entryId: string;
+  summary: string;
+  taskRef?: string;
+  syncMode: SyncMode;
+  action: "comment" | "create" | "subtask";
+  providerRef?: string;
+  totalMinutes: number;
+  kind: WorklogKind;
+  commits: string[];
+}
+```
+
+---
+
+### `executeSync(adapter, options?)`
+
+Execute the sync plan against a provider adapter.
+
+```typescript
+async executeSync(
+  adapter: TaskProviderAdapter,
+  options?: { entryId?: string }
+): Promise<SyncResult[]>
+```
+
+---
+
+### `status()`
+
+Get the current worklog summary.
+
+```typescript
+async status(): Promise<WorklogStatus>
+```
+
+```typescript
+interface WorklogStatus {
+  storageDir: string;
+  totalEvents: number;
+  consolidatedEvents: number;
+  pendingEvents: number;
+  totalEntries: number;
+  syncedEntries: number;
+  plannedEntries: number;
+  pendingEntries: number;
+  currentBranch: string | null;
+  taskRef: string | null;
+  lastEventAt: string | null;
+  lastSyncAt: string | null;
+}
+```
+
+---
+
+## Using the engine directly
+
+If you're building tooling on top of TaskTrace, you can use `WorklogEngine` directly:
+
+```typescript
+import { WorklogEngine, FileStorageProvider, loadConfig } from "@tasktrace/core";
+
+async function main() {
+  const config = await loadConfig({ dir: process.cwd() });
+  const storage = new FileStorageProvider(config.storage.dir);
+  const engine = new WorklogEngine({ config, storage });
+
+  // Log something
+  await engine.addEvent({
+    description: "automated build completed successfully",
+    kind: "implementation",
+    source: "system",
+  });
+
+  // Get status
+  const status = await engine.status();
+  console.log(`Pending entries: ${status.pendingEntries}`);
+}
+```
+
+<Callout type="info">
+  This is exactly how the CLI works internally — each command calls `createEngine()`, which
+  builds a `WorklogEngine` from config, then calls the appropriate method.
+</Callout>

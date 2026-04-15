@@ -1,0 +1,82 @@
+---
+title: Guides
+description: Practical guides for common TaskTrace workflows and use cases.
+---
+
+import { Card, Cards } from "fumadocs-ui/components/card";
+
+## Available guides
+
+<Cards>
+  <Card
+    title="Git workflow integration"
+    href="/docs/guides/git-workflow"
+    description="Hooks, branch naming, and automatic commit linking."
+  />
+  <Card
+    title="Claude Code setup"
+    href="/docs/guides/claude-code"
+    description="Configure TaskTrace as an MCP server in Claude Code for automatic worklog capture."
+  />
+  <Card
+    title="AI agent integration"
+    href="/docs/guides/ai-agents"
+    description="Patterns for AI agents to log, consolidate, and review work via MCP or CLI."
+  />
+  <Card
+    title="ClickUp setup"
+    href="/docs/guides/clickup-setup"
+    description="End-to-end ClickUp configuration — API key, list ID, sync modes."
+  />
+  <Card
+    title="Scripting and automation"
+    href="/docs/guides/scripting"
+    description="Shell scripts, CI/CD integration, and JSON output patterns."
+  />
+</Cards>
+
+## Quick recipes
+
+### Capture a day of work
+
+```bash
+# Morning standup
+tt add -d "standup — discussed auth refactor blockers" -k meeting -t 15
+
+# Investigation
+tt add -d "investigated why token refresh fails under load — traced to mutex contention"
+
+# Implementation
+tt add -d "rewrote token refresh with read-write lock" -k implementation -t 90
+
+# After commit
+tt attach
+
+# End of day
+tt consolidate
+tt plan
+tt sync
+```
+
+### Retroactive logging
+
+Forgot to log? Add events after the fact with explicit duration:
+
+```bash
+tt add -d "pair programmed the API redesign with @alice" -k implementation -t 120
+tt add -d "reviewed 3 PRs from the team" -k review -t 45
+tt consolidate && tt sync
+```
+
+### Weekly summary for standup
+
+```bash
+tt log --since 2026-04-07 --json | jq '[.entries[] | {summary, kind, totalMinutes, taskRef}]'
+```
+
+### Check before a PR merge
+
+```bash
+# Ensure the feature branch has logged and synced work
+tt log --branch $(git branch --show-current) --json | jq '.entries | length'
+```

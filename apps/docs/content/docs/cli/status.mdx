@@ -1,0 +1,93 @@
+---
+title: tt status
+description: Show a worklog health summary for the current project.
+---
+
+## Synopsis
+
+```bash
+tt status [options]
+tasktrace status [options]
+```
+
+## Description
+
+Prints a summary of the project's worklog state: event/entry counts, pending sync, current branch, and timestamps.
+
+Useful as a quick health check before starting work or at end of day.
+
+## Options
+
+| Flag | Alias | Type | Default | Description |
+|---|---|---|---|---|
+| `--json` | | `boolean` | `false` | Output as JSON |
+| `--quiet` | `-q` | `boolean` | `false` | Silent — exit code signals status (0 = all synced) |
+
+## Examples
+
+```bash
+# Human-readable dashboard
+tt status
+
+# Machine-readable (for scripts, AI agents)
+tt status --json
+
+# Exit-code only (for shell scripts)
+tt status -q && echo "all good" || echo "pending items"
+```
+
+## Output format
+
+```
+TaskTrace — project status
+
+  Storage dir    .tasktrace/
+  Events         14  (12 consolidated, 2 pending)
+  Entries        5   (3 synced, 1 planned, 1 pending)
+  Pending sync   1 entry
+
+  Current branch   CU-abc123/fix-auth
+  Task ref         CU-abc123
+
+  Last event     2026-04-14T10:15:00.000Z
+  Last sync      2026-04-13T17:30:00.000Z
+```
+
+## JSON output structure
+
+```json
+{
+  "storageDir": ".tasktrace",
+  "totalEvents": 14,
+  "consolidatedEvents": 12,
+  "pendingEvents": 2,
+  "totalEntries": 5,
+  "syncedEntries": 3,
+  "plannedEntries": 1,
+  "pendingEntries": 1,
+  "currentBranch": "CU-abc123/fix-auth",
+  "taskRef": "CU-abc123",
+  "lastEventAt": "2026-04-14T10:15:00.000Z",
+  "lastSyncAt": "2026-04-13T17:30:00.000Z"
+}
+```
+
+## Exit codes (quiet mode)
+
+| Code | Meaning |
+|---|---|
+| `0` | All entries synced — nothing pending |
+| `1` | Pending entries or events exist |
+
+## Using with AI agents
+
+AI agents can read `tt status --json` to decide whether to prompt the user to consolidate or sync:
+
+```bash
+STATUS=$(tt status --json)
+PENDING=$(echo "$STATUS" | jq '.pendingEntries')
+
+if [ "$PENDING" -gt 0 ]; then
+  echo "You have $PENDING entries pending sync."
+fi
+```

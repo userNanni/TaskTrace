@@ -1,0 +1,85 @@
+---
+title: Adapters
+description: Provider adapters connect TaskTrace to external task managers. ClickUp is available today; Linear and Jira are planned.
+---
+
+import { Card, Cards } from "fumadocs-ui/components/card";
+import { Callout } from "fumadocs-ui/components/callout";
+
+## What is an adapter?
+
+An adapter implements the `TaskProviderAdapter` interface from `@tasktrace/core`, bridging
+TaskTrace's internal `WorklogEntry` format to a specific task manager's API.
+
+```typescript
+interface TaskProviderAdapter {
+  testConnection(): Promise<{ ok: boolean; error?: string }>;
+  resolveTask(taskRef: string): Promise<ProviderTask | null>;
+  createTask(params: CreateTaskParams): Promise<ProviderTask>;
+  syncEntry(entry: WorklogEntry, mode: SyncMode): Promise<SyncResult>;
+  suggestSyncMode(entry: WorklogEntry): SyncMode;
+}
+```
+
+Any package that implements this interface can be plugged into TaskTrace as a provider.
+
+## Available adapters
+
+<Cards>
+  <Card
+    title="ClickUp"
+    href="/docs/adapters/clickup"
+    description="Production-ready. Supports comment, subtask, and task sync modes. Native fetch."
+  />
+  <Card
+    title="Linear"
+    href="/docs/adapters/clickup"
+    description="Planned for v0.3+. Will support issues, comments, and sub-issues."
+  />
+  <Card
+    title="Jira"
+    href="/docs/adapters/clickup"
+    description="Planned for v0.3+. Will support issues, comments, and sub-tasks."
+  />
+</Cards>
+
+## Writing a custom adapter
+
+1. Create a package that imports `@tasktrace/core`
+2. Implement `TaskProviderAdapter`
+3. Configure it in `.tasktracerc.json` via `provider.name`
+
+```typescript
+import type { TaskProviderAdapter, WorklogEntry, SyncMode, SyncResult } from "@tasktrace/core";
+
+export class MyAdapter implements TaskProviderAdapter {
+  async testConnection() {
+    // verify credentials
+    return { ok: true };
+  }
+
+  async resolveTask(taskRef: string) {
+    // fetch task by ref from your API
+    return null;
+  }
+
+  async createTask(params) {
+    // create a new task
+    return { id: "...", name: params.name, url: "..." };
+  }
+
+  async syncEntry(entry: WorklogEntry, mode: SyncMode): Promise<SyncResult> {
+    // post comment / create subtask / create task
+    return { ok: true, providerRef: "...", url: "..." };
+  }
+
+  suggestSyncMode(entry: WorklogEntry): SyncMode {
+    return entry.taskRef ? "comment" : "task";
+  }
+}
+```
+
+<Callout type="info">
+  Adapters are loaded lazily — only when sync commands are used. The core engine and CLI work
+  without any adapter configured.
+</Callout>

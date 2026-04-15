@@ -1,0 +1,269 @@
+---
+title: Scripting and automation
+description: Shell scripts, CI/CD integration, JSON output patterns, and programmatic usage.
+---
+
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+import { Callout } from "fumadocs-ui/components/callout";
+
+## JSON output
+
+Every `tt` command supports `--json` for machine-readable output. Use `jq` for processing:
+
+```bash
+# Current branch and task ref
+tt status --json | jq '{branch: .currentBranch, taskRef: .taskRef}'
+
+# Count pending entries
+tt status --json | jq '.pendingEntries'
+
+# List summaries of recent entries
+tt log --json | jq '[.entries[].summary]'
+
+# Filter entries by task ref
+tt log --json | jq '[.entries[] | select(.taskRef == "CU-abc123")]'
+
+# Total time logged this week
+tt log --since 2026-04-07 --json | jq '[.entries[].totalMinutes] | add'
+```
+
+---
+
+## Shell script patterns
+
+### Daily wrap-up script
+
+```bash
+#!/usr/bin/env bash
+# daily-wrap.sh — consolidate and show pending items
+
+set -euo pipefail
+
+cd "${TASKTRACE_PROJECT_DIR:-$PWD}"
+
+echo "=== TaskTrace daily wrap-up ==="
+
+# Consolidate pending events
+RESULT=$(tt consolidate --json 2>/dev/null || echo '{"createdEntries":[]}')
+COUNT=$(echo "$RESULT" | jq '.createdEntries | length')
+echo "Consolidated: $COUNT new entries"
+
+# Status summary
+STATUS=$(tt status --json)
+PENDING=$(echo "$STATUS" | jq '.pendingEntries')
+BRANCH=$(echo "$STATUS" | jq -r '.currentBranch // "none"')
+
+echo "Branch: $BRANCH"
+echo "Pending sync: $PENDING entries"
+
+if [ "$PENDING" -gt 0 ]; then
+  echo ""
+  echo "Run 'tt plan' to preview, then 'tt sync' to send to ClickUp."
+fi
+```
+
+### Weekly time report
+
+```bash
+#!/usr/bin/env bash
+# weekly-report.sh — time logged by kind for the current week
+
+SINCE=$(date -v-Mon +%Y-%m-%d 2>/dev/null || date -d 'last Monday' +%Y-%m-%d)
+
+tt log --since "$SINCE" --json | jq -r '
+  .entries
+  | group_by(.kind)
+  | map({
+      kind: .[0].kind,
+      totalMinutes: map(.totalMinutes) | add,
+      count: length
+    })
+  | sort_by(.totalMinutes)
+  | reverse[]
+  | "\(.kind): \(.totalMinutes) min (\(.count) entries)"
+'
+```
+
+### Pre-PR checklist
+
+```bash
+#!/usr/bin/env bash
+# check-worklog.sh — verify work is logged before opening a PR
+
+BRANCH=$(git branch --show-current)
+ENTRY_COUNT=$(tt log --branch "$BRANCH" --json | jq '.entries | length')
+
+if [ "$ENTRY_COUNT" -eq 0 ]; then
+  echo "⚠ No worklog entries for branch: $BRANCH"
+  echo "  Log your work: tt add -d '...' && tt consolidate"
+  exit 1
+fi
+
+UNSYNCED=$(tt log --branch "$BRANCH" --json | jq '[.entries[] | select(.syncStatus != "synced")] | length')
+
+if [ "$UNSYNCED" -gt 0 ]; then
+  echo "⚠ $UNSYNCED entry(ies) not yet synced on branch: $BRANCH"
+  echo "  Run: tt sync"
+fi
+
+echo "✔ Worklog: $ENTRY_COUNT entries ($UNSYNCED unsynced)"
+```
+
+---
+
+## CI/CD integration
+
+<Tabs items={["GitHub Actions", "GitLab CI"]}>
+<Tab value="GitHub Actions">
+
+```yaml title=".github/workflows/sync-worklog.yml"
+name: Sync worklog
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install TaskTrace
+        run: bun add -g @tasktrace/cli
+
+      - name: Initialize (if needed)
+        run: |
+          if [ ! -f .tasktracerc.json ]; then
+            tt init
+          fi
+
+      - name: Sync pending entries
+        env:
+          TASKTRACE_CLICKUP_API_KEY: ${{ secrets.TASKTRACE_CLICKUP_API_KEY }}
+        run: |
+          tt plan --json
+          tt sync --json
+```
+
+</Tab>
+<Tab value="GitLab CI">
+
+```yaml title=".gitlab-ci.yml"
+sync-worklog:
+  stage: deploy
+  image: oven/bun:latest
+  only:
+    - main
+  script:
+    - bun add -g @tasktrace/cli
+    - tt plan --json
+    - tt sync --json
+  variables:
+    TASKTRACE_CLICKUP_API_KEY: $TASKTRACE_CLICKUP_API_KEY
+```
+
+</Tab>
+</Tabs>
+
+<Callout type="warn">
+  In CI, ensure `.tasktrace/` is either committed (not recommended — personal data) or
+  restored from a cache/artifact between runs. Otherwise entries from previous runs won't be
+  available for sync.
+</Callout>
+
+---
+
+## Programmatic usage (Bun/Node.js)
+
+Use `@tasktrace/core` directly in scripts without going through the CLI:
+
+```typescript
+// worklog-report.ts
+import { WorklogEngine, FileStorageProvider, loadConfig } from "@tasktrace/core";
+
+const projectDir = process.cwd();
+const config = await loadConfig({ dir: projectDir });
+const storage = new FileStorageProvider(config.storage.dir);
+const engine = new WorklogEngine({ config, storage });
+
+// Get all entries from this week
+const since = new Date();
+since.setDate(since.getDate() - 7);
+
+const entries = await engine.listEntries({
+  since: since.toISOString(),
+});
+
+// Report total time by kind
+const byKind = entries.reduce<Record<string, number>>((acc, e) => {
+  acc[e.kind] = (acc[e.kind] ?? 0) + (e.totalMinutes ?? 0);
+  return acc;
+}, {});
+
+console.log("Time logged this week:");
+for (const [kind, minutes] of Object.entries(byKind).sort((a, b) => b[1] - a[1])) {
+  console.log(`  ${kind}: ${minutes} min`);
+}
+```
+
+Run with:
+
+```bash
+bun run worklog-report.ts
+```
+
+---
+
+## Git hooks scripting
+
+### Custom post-commit hook
+
+```bash
+#!/usr/bin/env sh
+# .husky/post-commit
+
+# Attach commit + log status
+tt attach --json > /dev/null 2>&1 && echo "✔ tt: commit attached"
+```
+
+### Commit-msg hook with task ref injection
+
+```bash
+#!/usr/bin/env sh
+# .husky/commit-msg
+
+COMMIT_MSG_FILE="$1"
+TASK_REF=$(tt status --json 2>/dev/null | jq -r '.taskRef // empty')
+
+if [ -n "$TASK_REF" ]; then
+  # Prepend task ref if not already present
+  if ! grep -q "$TASK_REF" "$COMMIT_MSG_FILE"; then
+    sed -i.bak "1s/^/[$TASK_REF] /" "$COMMIT_MSG_FILE"
+    rm -f "$COMMIT_MSG_FILE.bak"
+  fi
+fi
+```
+
+This automatically prepends `[CU-abc123]` to commit messages when on a task branch.
+
+---
+
+## Exit codes
+
+Use `tt status -q` for exit-code-only checks in scripts:
+
+```bash
+if tt status -q; then
+  echo "All synced."
+else
+  echo "Pending items — review with: tt log"
+fi
+```
+
+| Code | Meaning |
+|---|---|
+| `0` | All entries synced |
+| `1` | Pending events or entries |

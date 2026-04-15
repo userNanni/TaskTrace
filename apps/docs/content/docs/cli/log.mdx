@@ -1,0 +1,104 @@
+---
+title: tt log
+description: List consolidated entries or raw events with optional filters.
+---
+
+## Synopsis
+
+```bash
+tt log [options]
+tasktrace log [options]
+```
+
+## Description
+
+Displays consolidated entries by default. Pass `--events` to see raw events instead.
+Supports filtering by branch, task reference, and time range.
+
+## Options
+
+| Flag | Alias | Type | Default | Description |
+|---|---|---|---|---|
+| `--events` | | `boolean` | `false` | Show raw events instead of entries |
+| `--branch` | | `string` | — | Filter by branch name |
+| `--taskRef` | `-r` | `string` | — | Filter by task reference |
+| `--since` | | `string` | — | ISO 8601 date or relative (e.g. `2026-04-01`) |
+| `--limit` | `-n` | `number` | `20` | Maximum number of results |
+| `--json` | | `boolean` | `false` | Output as JSON |
+
+## Examples
+
+```bash
+# List last 20 entries (default)
+tt log
+
+# List last 50 entries
+tt log -n 50
+
+# Filter by current branch
+tt log --branch CU-abc123/fix-auth
+
+# Filter by task reference
+tt log -r CU-abc123
+
+# Entries since a date
+tt log --since 2026-04-01
+
+# Raw events (unprocessed)
+tt log --events
+
+# Combine filters
+tt log --events -r CU-abc123 -n 10
+
+# Machine-readable
+tt log --json | jq '.entries[].summary'
+```
+
+## Entry output format
+
+```
+01JRZXABCDEFGH123456789000   [synced]
+  Summary   Fixed auth timeout and refresh token flow
+  Kind      bugfix
+  Branch    CU-abc123/fix-auth
+  TaskRef   CU-abc123
+  Duration  45 min
+  Commits   abc123def456
+  Tags      auth, tokens
+  Created   2026-04-14T09:30:00.000Z
+```
+
+## JSON output structure
+
+```json
+{
+  "entries": [
+    {
+      "id": "01JRZXABCDEFGH123456789000",
+      "createdAt": "2026-04-14T09:30:00.000Z",
+      "updatedAt": "2026-04-14T10:15:00.000Z",
+      "eventIds": ["01JRZXAAA...", "01JRZXBBB..."],
+      "summary": "Fixed auth timeout and refresh token flow",
+      "kind": "bugfix",
+      "statusHint": "done",
+      "totalMinutes": 45,
+      "taskRef": "CU-abc123",
+      "branch": "CU-abc123/fix-auth",
+      "commits": ["abc123def456"],
+      "syncMode": "comment",
+      "syncStatus": "synced",
+      "tags": ["auth", "tokens"]
+    }
+  ]
+}
+```
+
+## SyncStatus values
+
+| Status | Meaning |
+|---|---|
+| `pending` | Not yet synced, not in a sync plan |
+| `planned` | Included in the next sync plan |
+| `synced` | Successfully synced to the task provider |
+| `failed` | Sync attempted but failed |
+| `ignored` | Explicitly excluded from sync |

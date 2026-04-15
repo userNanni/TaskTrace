@@ -1,0 +1,154 @@
+---
+title: Storage
+description: NDJSON append-only files, file locking, JSON config — how TaskTrace persists data.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+## Storage provider
+
+All persistence goes through the `StorageProvider` interface. The default implementation is
+`FileStorageProvider`, which writes to the local filesystem.
+
+```typescript
+interface StorageProvider {
+  append<T>(file: StorageFile, record: T): Promise<void>;
+  readAll<T>(file: StorageFile, schema: ZodSchema<T>): Promise<T[]>;
+  writeAll<T>(file: StorageFile, records: T[]): Promise<void>;
+  readJsonFile<T>(file: StorageFile, schema: ZodSchema<T>): Promise<T | null>;
+  writeJsonFile<T>(file: StorageFile, data: T): Promise<void>;
+  getStorageDir(): string;
+}
+```
+
+---
+
+## File layout
+
+```
+.tasktrace/
+├── events.ndjson        # WorklogEvent records (append-only)
+├── entries.ndjson       # WorklogEntry records (append + update via rewrite)
+└── sync-state.json      # SyncState (full rewrite on each sync)
+```
+
+---
+
+## NDJSON format
+
+Events and entries use **Newline-Delimited JSON** — one JSON object per line:
+
+```jsonl title=".tasktrace/events.ndjson"
+{"id":"01JRZXAAA...","timestamp":"2026-04-14T09:00:00.000Z","source":"manual","kind":"investigation","description":"investigated auth timeout","branch":"CU-abc123/fix-auth","taskRef":"CU-abc123"}
+{"id":"01JRZXBBB...","timestamp":"2026-04-14T10:15:00.000Z","source":"ai","kind":"bugfix","description":"fixed race condition in token refresh","branch":"CU-abc123/fix-auth","taskRef":"CU-abc123","durationMinutes":45}
+```
+
+**Why NDJSON?**
+- Append is O(1) — no parsing required to add a record
+- Human-readable with `cat`, `jq`, `grep`
+- Git-diff-friendly (each record is one line)
+- No risk of corruption on partial write (incomplete lines are ignored)
+
+---
+
+## File locking
+
+Concurrent writes are protected by [`proper-lockfile`](https://github.com/moxystudio/node-proper-lockfile).
+
+When `append()` is called:
+1. Acquire exclusive lock on the `.ndjson` file
+2. Append the JSON-serialized record + newline
+3. Release the lock
+
+This makes TaskTrace safe for concurrent MCP server + CLI usage.
+
+<Callout type="warn">
+  Stale lock files (`.ndjson.lock`) can occur if a process crashes mid-write. Delete them manually
+  if `tt` hangs on a write operation: `rm .tasktrace/*.lock`
+</Callout>
+
+---
+
+## Read validation
+
+All reads go through Zod schema validation:
+
+```typescript
+// Internal implementation of readAll()
+const lines = await fs.readFile(filePath, "utf-8");
+const records = lines
+  .split("\n")
+  .filter(Boolean)
+  .map((line) => schema.parse(JSON.parse(line)));
+```
+
+Invalid lines (e.g. corrupted by a crash) are rejected with a clear error — not silently skipped.
+
+---
+
+## FileStorageProvider
+
+```typescript
+import { FileStorageProvider } from "@tasktrace/core";
+
+const storage = new FileStorageProvider(".tasktrace");
+
+// Append a record to events.ndjson
+await storage.append("events", event);
+
+// Read all entries from entries.ndjson
+const entries = await storage.readAll("entries", WorklogEntrySchema);
+
+// Read sync state
+const state = await storage.readJsonFile("sync-state", SyncStateSchema);
+
+// Write updated sync state
+await storage.writeJsonFile("sync-state", updatedState);
+```
+
+---
+
+## Global config paths
+
+```typescript
+import { getGlobalConfigDir, getGlobalConfigPath } from "@tasktrace/core";
+
+getGlobalConfigDir()   // → ~/.tasktrace/
+getGlobalConfigPath()  // → ~/.tasktrace/config.json
+```
+
+---
+
+## Path resolution
+
+```typescript
+import { resolveStorageDir, getStorageFilePath } from "@tasktrace/core";
+
+// Resolve storage dir from config (handles relative and absolute paths)
+resolveStorageDir(config, projectDir)
+
+// Get absolute path to a specific storage file
+getStorageFilePath(config, projectDir, "events")    // → /path/to/.tasktrace/events.ndjson
+getStorageFilePath(config, projectDir, "entries")   // → /path/to/.tasktrace/entries.ndjson
+getStorageFilePath(config, projectDir, "sync-state") // → /path/to/.tasktrace/sync-state.json
+```
+
+---
+
+## Manual inspection
+
+Because storage is plain text, you can inspect it without the CLI:
+
+```bash
+# View all events
+cat .tasktrace/events.ndjson | jq .
+
+# Count events by kind
+cat .tasktrace/events.ndjson | jq -r '.kind' | sort | uniq -c
+
+# Find events for a specific task
+cat .tasktrace/events.ndjson | jq 'select(.taskRef == "CU-abc123")'
+
+# View sync state
+cat .tasktrace/sync-state.json | jq .
+```

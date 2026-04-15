@@ -1,0 +1,99 @@
+---
+title: tt attach
+description: Link a git commit SHA to a WorklogEntry.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+## Synopsis
+
+```bash
+tt attach [sha] [options]
+tasktrace attach [sha] [options]
+```
+
+## Description
+
+Binds a commit SHA to a `WorklogEntry`. This creates a traceable link between your worklog
+and your git history — crucial for meaningful sync payloads.
+
+By default, attaches `HEAD` to the most recent entry.
+
+## Options
+
+| Flag | Alias | Type | Default | Description |
+|---|---|---|---|---|
+| `sha` | | `string` | `HEAD` | Commit SHA to attach |
+| `--entry` | `-e` | `string` | _(latest)_ | Entry ID to attach to |
+| `--json` | | `boolean` | `false` | Output as JSON |
+
+## Examples
+
+```bash
+# Attach HEAD to latest entry (most common usage)
+tt attach
+
+# Attach a specific commit
+tt attach abc123def456
+
+# Attach to a specific entry
+tt attach --entry 01JRZXABCDEFGH123456789000
+
+# Attach specific commit to specific entry
+tt attach abc123def456 --entry 01JRZXABCDEFGH123456789000
+
+# JSON output
+tt attach --json
+```
+
+## Output
+
+```
+✔ Attached commit abc123def456 to entry 01JRZXABCDEFGH123456789000
+  Summary: Fixed auth timeout and refresh token flow
+  Branch:  CU-abc123/fix-auth
+```
+
+## Git hook (automatic attach)
+
+When `tt init --hooks` is used, a post-commit hook is installed that runs `tt attach`
+automatically after every commit:
+
+```bash
+# .husky/post-commit (generated)
+tt attach
+```
+
+This means you never have to think about attaching — it happens automatically.
+
+<Callout type="info">
+  If no entry exists yet when the hook runs (e.g. you committed before adding events),
+  `tt attach` exits silently without error.
+</Callout>
+
+## Why attach matters
+
+Commits in entries are included in ClickUp sync payloads:
+
+```markdown
+## Work log — CU-abc123
+
+**Summary:** Fixed auth timeout and refresh token flow
+**Duration:** 45 min | **Kind:** bugfix
+
+**Commits:**
+- abc123def456 — fix: resolve race condition in token refresh
+```
+
+Without a commit SHA, the sync comment has no traceability back to git.
+
+## JSON output structure
+
+```json
+{
+  "entryId": "01JRZXABCDEFGH123456789000",
+  "commitSha": "abc123def456789",
+  "branch": "CU-abc123/fix-auth",
+  "summary": "Fixed auth timeout and refresh token flow"
+}
+```

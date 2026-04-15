@@ -1,0 +1,156 @@
+---
+title: MCP Server
+description: Connect AI agents (Claude Code, Cursor) to TaskTrace via the Model Context Protocol.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+import { Steps, Step } from "fumadocs-ui/components/steps";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+import { Card, Cards } from "fumadocs-ui/components/card";
+
+## Overview
+
+`@tasktrace/mcp-server` exposes TaskTrace as an MCP server over **stdio transport**.
+AI agents connect to it and call tools to log work, query status, and consolidate entries —
+without the user having to remember to run `tt add` manually.
+
+**5 tools + 2 resources** are available.
+
+---
+
+## Install
+
+```bash
+bun add -g @tasktrace/mcp-server
+# or
+npm install -g @tasktrace/mcp-server
+```
+
+---
+
+## Configure in your AI client
+
+<Tabs items={["Claude Code", "Cursor", "Manual (stdio)"]}>
+<Tab value="Claude Code">
+
+Add to your Claude Code MCP configuration (`~/.claude/mcp_servers.json` or project-level):
+
+```json
+{
+  "mcpServers": {
+    "tasktrace": {
+      "command": "tasktrace-mcp",
+      "env": {
+        "TASKTRACE_PROJECT_DIR": "/absolute/path/to/your/project"
+      }
+    }
+  }
+}
+```
+
+Or using `bun` explicitly (if the global binary isn't in PATH):
+
+```json
+{
+  "mcpServers": {
+    "tasktrace": {
+      "command": "bun",
+      "args": ["run", "@tasktrace/mcp-server"],
+      "env": {
+        "TASKTRACE_PROJECT_DIR": "/absolute/path/to/your/project"
+      }
+    }
+  }
+}
+```
+
+</Tab>
+<Tab value="Cursor">
+
+Add to Cursor's MCP settings (`.cursor/mcp.json` in your project or global settings):
+
+```json
+{
+  "mcpServers": {
+    "tasktrace": {
+      "command": "tasktrace-mcp",
+      "env": {
+        "TASKTRACE_PROJECT_DIR": "${workspaceFolder}"
+      }
+    }
+  }
+}
+```
+
+</Tab>
+<Tab value="Manual (stdio)">
+
+Start the server manually for testing:
+
+```bash
+TASKTRACE_PROJECT_DIR=/path/to/project tasktrace-mcp
+```
+
+The server reads from stdin and writes to stdout using the MCP protocol (JSON-RPC over stdio).
+
+</Tab>
+</Tabs>
+
+---
+
+## Environment variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `TASKTRACE_PROJECT_DIR` | Yes | Absolute path to the project. Server reads config and storage from here. |
+| `TASKTRACE_CLICKUP_API_KEY` | For sync | ClickUp API key |
+
+---
+
+## Available tools and resources
+
+<Cards>
+  <Card title="worklog_add" href="/docs/mcp/tools#worklog_add" description="Add a work event." />
+  <Card title="worklog_consolidate" href="/docs/mcp/tools#worklog_consolidate" description="Group events into entries." />
+  <Card title="worklog_attach_commit" href="/docs/mcp/tools#worklog_attach_commit" description="Link a commit SHA to an entry." />
+  <Card title="worklog_log" href="/docs/mcp/tools#worklog_log" description="List entries or events with filters." />
+  <Card title="worklog_status" href="/docs/mcp/tools#worklog_status" description="Get project worklog summary." />
+  <Card title="tasktrace://config" href="/docs/mcp/resources" description="Read current configuration." />
+  <Card title="tasktrace://worklogs/recent" href="/docs/mcp/resources" description="Read last 10 entries." />
+</Cards>
+
+---
+
+## Recommended agent instructions
+
+Add these instructions to your agent's system prompt or CLAUDE.md:
+
+```markdown
+## TaskTrace worklog
+
+Use the TaskTrace MCP tools to log your work as you go:
+
+- Call `worklog_add` after completing a meaningful unit of work
+  (investigation, implementation, bugfix, review, etc.)
+- Use `source: "ai"` on all events you create
+- Call `worklog_consolidate` at session end to group events into entries
+- Call `worklog_attach_commit` after git commits
+- Check `worklog_status` at session start to understand current state
+- Never sync directly — let the user review with `tt plan` first
+```
+
+<Callout type="info">
+  The MCP server does not expose sync tools. Sync is always user-initiated via `tt plan` + `tt sync`
+  to ensure human review before data goes to the task manager.
+</Callout>
+
+---
+
+## How it works internally
+
+The MCP server:
+1. Reads `TASKTRACE_PROJECT_DIR` (or `cwd`) on startup
+2. Loads the project config (`.tasktracerc.json` + env vars)
+3. Initializes a `WorklogEngine` instance (same engine the CLI uses)
+4. Registers tools and resources via the MCP SDK
+5. Listens on stdio for JSON-RPC calls from the AI client

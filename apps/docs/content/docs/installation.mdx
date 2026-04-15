@@ -1,0 +1,205 @@
+---
+title: Installation
+description: Install TaskTrace CLI and MCP server globally or per-project.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+import { Steps, Step } from "fumadocs-ui/components/steps";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+
+## Requirements
+
+| Dependency | Minimum | Notes |
+|---|---|---|
+| Node.js | 18+ | For npm install |
+| Bun | 1.0+ | Preferred runtime |
+| Git | Any | Required for git integration |
+
+---
+
+## CLI install
+
+<Tabs items={["bun", "npm", "pnpm"]}>
+<Tab value="bun">
+```bash
+bun add -g @tasktrace/cli
+```
+</Tab>
+<Tab value="npm">
+```bash
+npm install -g @tasktrace/cli
+```
+</Tab>
+<Tab value="pnpm">
+```bash
+pnpm add -g @tasktrace/cli
+```
+</Tab>
+</Tabs>
+
+Verify:
+
+```bash
+tt --version
+tasktrace --version
+```
+
+Both `tt` and `tasktrace` are available after installation.
+
+---
+
+## Project setup
+
+<Steps>
+<Step>
+
+### Navigate to your project
+
+```bash
+cd your-project
+```
+
+</Step>
+<Step>
+
+### Initialize TaskTrace
+
+```bash
+tt init
+```
+
+This creates:
+- `.tasktracerc.json` — project config
+- `.tasktrace/` — local storage directory (events, entries, sync-state)
+
+To also install git hooks during init:
+
+```bash
+tt init --hooks
+```
+
+</Step>
+<Step>
+
+### Add to .gitignore
+
+The storage directory is personal worklog data — do not commit it:
+
+```bash
+echo ".tasktrace/" >> .gitignore
+```
+
+Keep `.tasktracerc.json` in version control so teammates share the same provider config.
+
+</Step>
+</Steps>
+
+---
+
+## MCP server install
+
+For AI agents (Claude Code, Cursor) to log work automatically:
+
+<Tabs items={["bun", "npm", "pnpm"]}>
+<Tab value="bun">
+```bash
+bun add -g @tasktrace/mcp-server
+```
+</Tab>
+<Tab value="npm">
+```bash
+npm install -g @tasktrace/mcp-server
+```
+</Tab>
+<Tab value="pnpm">
+```bash
+pnpm add -g @tasktrace/mcp-server
+```
+</Tab>
+</Tabs>
+
+Verify:
+
+```bash
+tasktrace-mcp --help
+```
+
+See [MCP Server](/docs/mcp) for configuration in Claude Code and Cursor.
+
+---
+
+## Git hooks
+
+Git hooks let TaskTrace auto-capture events on every commit.
+
+Install manually after init:
+
+```bash
+tt init --hooks
+```
+
+Or if you already ran `tt init` without hooks:
+
+```bash
+# Re-run with --hooks flag
+tt init --hooks
+```
+
+This installs a **post-commit hook** that automatically attaches the commit SHA to your latest entry.
+
+<Callout type="warn">
+  Hooks require [Husky](https://typicode.github.io/husky/) to be set up in your project. If Husky
+  is not installed, TaskTrace will skip hook installation.
+</Callout>
+
+---
+
+## Monorepo setup
+
+In a monorepo, initialize TaskTrace at the repository root so all packages share one worklog:
+
+```bash
+# At repo root
+tt init --hooks
+
+# Config is shared, storage is per-dev (gitignored)
+```
+
+If you need per-package worklogs, initialize in each package directory and configure
+`storage.dir` in each `.tasktracerc.json`.
+
+---
+
+## Verifying the installation
+
+Run a quick health check:
+
+```bash
+tt status
+```
+
+Expected output after a fresh `tt init`:
+
+```
+TaskTrace — project status
+  Storage dir   .tasktrace/
+  Events        0
+  Entries       0
+  Pending sync  0
+  Current branch  main (no task ref detected)
+```
+
+---
+
+## Uninstall
+
+```bash
+# CLI
+bun remove -g @tasktrace/cli
+
+# MCP server
+bun remove -g @tasktrace/mcp-server
+
+# Project files
+rm -rf .tasktrace/ .tasktracerc.json
+```

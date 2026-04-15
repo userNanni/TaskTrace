@@ -1,0 +1,112 @@
+---
+title: tt plan
+description: Preview the sync payload before sending anything to your task provider.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+## Synopsis
+
+```bash
+tt plan [options]
+tasktrace plan [options]
+```
+
+## Description
+
+Generates a dry-run preview of what `tt sync` would send. No data is written — neither locally
+nor to the task provider. Use this to review and approve before committing.
+
+**Always run `tt plan` before `tt sync`** in unfamiliar situations.
+
+## Options
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--json` | `boolean` | `false` | Output as JSON |
+
+## Examples
+
+```bash
+# Preview sync plan
+tt plan
+
+# JSON output (for AI agents or scripts)
+tt plan --json
+```
+
+## Output
+
+```
+Sync plan — 2 entries
+
+  ① 01JRZXABCDEFGH123456789000
+    Summary    Fixed auth timeout and refresh token flow
+    TaskRef    CU-abc123
+    Mode       comment
+    Action     POST comment to CU-abc123
+    Duration   45 min · Kind: bugfix
+    Commits    abc123def456
+
+  ② 01JRZXDEFGHIJK987654321000
+    Summary    Refactored user loader to remove N+1 queries
+    TaskRef    (none)
+    Mode       task
+    Action     CREATE new task in list 901234567
+    Duration   90 min · Kind: refactor
+    Commits    def456abc123
+```
+
+## JSON output structure
+
+```json
+{
+  "items": [
+    {
+      "entryId": "01JRZXABCDEFGH123456789000",
+      "summary": "Fixed auth timeout and refresh token flow",
+      "taskRef": "CU-abc123",
+      "syncMode": "comment",
+      "action": "comment",
+      "providerRef": "CU-abc123",
+      "totalMinutes": 45,
+      "kind": "bugfix",
+      "commits": ["abc123def456"]
+    },
+    {
+      "entryId": "01JRZXDEFGHIJK987654321000",
+      "summary": "Refactored user loader to remove N+1 queries",
+      "taskRef": null,
+      "syncMode": "task",
+      "action": "create",
+      "providerRef": null,
+      "totalMinutes": 90,
+      "kind": "refactor",
+      "commits": ["def456abc123"]
+    }
+  ]
+}
+```
+
+## Sync modes in the plan
+
+| Mode | Condition | Action |
+|---|---|---|
+| `comment` | Entry has `taskRef` + short session | Adds comment to existing task |
+| `subtask` | Entry has `taskRef` + long session or many commits | Creates subtask under parent |
+| `task` | No `taskRef` | Creates new task in `defaultListId` |
+| `skip` | Explicitly excluded | No action taken |
+
+<Callout type="info">
+  The adapter auto-suggests a sync mode based on duration and commit count. You can override
+  this in your `.tasktracerc.json` via `defaults.syncMode`.
+</Callout>
+
+## Typical workflow
+
+```bash
+tt consolidate   # group pending events
+tt attach        # link commits
+tt plan          # review — make sure actions look right
+tt sync          # execute
+```

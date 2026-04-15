@@ -1,0 +1,207 @@
+---
+title: Git workflow integration
+description: Branch naming conventions, automatic commit linking, and git hook setup.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+import { Steps, Step } from "fumadocs-ui/components/steps";
+
+## Overview
+
+TaskTrace integrates tightly with git at two points:
+
+1. **Branch parsing** — extracts task references from branch names automatically
+2. **Commit linking** — binds commit SHAs to entries via hooks or `tt attach`
+
+---
+
+## Branch naming
+
+When you run `tt add`, TaskTrace reads the current branch name and tries to extract a task
+reference using the patterns configured in `.tasktracerc.json`.
+
+### Default patterns
+
+| Pattern | Example branch | Extracted ref |
+|---|---|---|
+| `CU-([a-zA-Z0-9]+)` | `CU-abc123/fix-auth-timeout` | `CU-abc123` |
+| `([A-Z]+-\d+)` | `feature/PROJ-42-add-login` | `PROJ-42` |
+| `#(\d+)` | `fix/#99-crash-on-load` | `#99` |
+
+### Recommended branch naming
+
+For ClickUp tasks, prefix branches with the task ID:
+
+```
+CU-abc123/short-description
+CU-abc123-short-description
+```
+
+Both formats work. The first is more common and easier to read.
+
+### Custom patterns
+
+Override in `.tasktracerc.json`:
+
+```json
+{
+  "git": {
+    "branchPatterns": [
+      "CU-([a-zA-Z0-9]+)",
+      "([A-Z]+-\\d+)",
+      "TICKET-(\\d+)",
+      "GH-(\\d+)"
+    ]
+  }
+}
+```
+
+Patterns are matched in order. First match wins.
+
+### Testing your patterns
+
+```bash
+# Check what ref would be extracted from current branch
+tt status --json | jq '.taskRef'
+
+# Or on a specific branch
+git checkout CU-xyz789/my-feature
+tt add -d "test" --json | jq '.taskRef'
+```
+
+---
+
+## Git hooks
+
+### Post-commit hook (recommended)
+
+Automatically calls `tt attach` after every commit:
+
+```bash
+tt init --hooks
+```
+
+This installs:
+
+```bash title=".husky/post-commit"
+#!/usr/bin/env sh
+tt attach
+```
+
+After every `git commit`, the new commit SHA is linked to the latest entry. Zero manual effort.
+
+### Pre-commit hook (optional)
+
+A pre-commit hook can validate that work has been logged before committing:
+
+```bash title=".husky/pre-commit"
+#!/usr/bin/env sh
+STATUS=$(tt status --json)
+PENDING_EVENTS=$(echo "$STATUS" | jq '.pendingEvents')
+
+if [ "$PENDING_EVENTS" -eq 0 ]; then
+  echo "⚠ No pending events. Did you forget to log your work?"
+  echo "  Run: tt add -d 'what you did'"
+  # Remove 'exit 1' to make this a warning-only, not a blocker
+fi
+```
+
+<Callout type="warn">
+  Pre-commit hooks that block commits can frustrate developers. Consider making them
+  warnings (no `exit 1`) rather than hard blockers.
+</Callout>
+
+---
+
+## Full git workflow example
+
+<Steps>
+<Step>
+
+### Start a new task
+
+```bash
+git checkout -b CU-abc123/implement-auth-refresh
+tt add -d "read ClickUp ticket and planned approach" -k investigation -t 20
+```
+
+</Step>
+<Step>
+
+### Work and log as you go
+
+```bash
+tt add -d "implemented token refresh with exponential backoff" -k implementation
+tt add -d "fixed edge case when refresh token is expired" -k bugfix -t 30
+```
+
+</Step>
+<Step>
+
+### Commit (hook auto-attaches)
+
+```bash
+git add -A
+git commit -m "feat: implement auth token refresh with exponential backoff"
+# Post-commit hook runs: tt attach
+# → Linked commit abc123def456 to entry 01JRZX...
+```
+
+</Step>
+<Step>
+
+### Consolidate and sync
+
+```bash
+tt consolidate
+tt plan     # review
+tt sync     # → posts comment to CU-abc123 in ClickUp
+```
+
+</Step>
+</Steps>
+
+---
+
+## Working without hooks
+
+If Husky is not set up (or you prefer manual control), call `tt attach` yourself after commits:
+
+```bash
+git commit -m "fix: resolve race condition"
+tt attach          # links HEAD to latest entry
+```
+
+Or attach a specific SHA:
+
+```bash
+tt attach abc123def456
+```
+
+---
+
+## Multi-commit features
+
+For features that span many commits, TaskTrace accumulates commits on the entry:
+
+```bash
+# Day 1
+git commit -m "feat(auth): skeleton of new refresh flow"
+tt attach  # → commit A linked
+
+# Day 2
+git commit -m "feat(auth): implement backoff logic"
+tt attach  # → commit A + B linked
+
+git commit -m "test(auth): add refresh flow tests"
+tt attach  # → commit A + B + C linked
+```
+
+When synced, all commits appear in the ClickUp comment:
+
+```markdown
+**Commits:**
+- abc123 — feat(auth): skeleton of new refresh flow
+- def456 — feat(auth): implement backoff logic
+- ghi789 — test(auth): add refresh flow tests
+```

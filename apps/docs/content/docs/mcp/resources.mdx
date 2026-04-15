@@ -1,0 +1,127 @@
+---
+title: MCP Resources
+description: MCP resources exposed by the TaskTrace server for AI agent context.
+---
+
+## Overview
+
+MCP resources are read-only data endpoints that AI agents can fetch for context.
+Unlike tools (which perform actions), resources are passive — they return current state.
+
+TaskTrace exposes two resources:
+
+| URI | Description |
+|---|---|
+| `tasktrace://config` | Current resolved configuration |
+| `tasktrace://worklogs/recent` | Last 10 consolidated entries |
+
+---
+
+## `tasktrace://config`
+
+Returns the fully resolved configuration for the current project — the merged result of
+defaults, global config, project config, and environment variables.
+
+### Fetch
+
+```json
+{
+  "resource": "tasktrace://config"
+}
+```
+
+### Return value
+
+```json
+{
+  "version": 1,
+  "storage": {
+    "dir": ".tasktrace"
+  },
+  "git": {
+    "branchPatterns": [
+      "CU-([a-zA-Z0-9]+)",
+      "([A-Z]+-\\d+)",
+      "#(\\d+)"
+    ],
+    "hooks": {
+      "preCommit": false,
+      "postCommit": true
+    }
+  },
+  "provider": {
+    "name": "clickup",
+    "config": {
+      "defaultListId": "901234567"
+    }
+  },
+  "defaults": {
+    "syncMode": "comment",
+    "kind": "implementation",
+    "consolidationGapMinutes": 240
+  }
+}
+```
+
+### When to use
+
+Fetch this resource when the agent needs to:
+- Know the current task provider and default list
+- Understand configured branch patterns
+- Verify hook configuration
+
+---
+
+## `tasktrace://worklogs/recent`
+
+Returns the last 10 `WorklogEntry` records, sorted by `createdAt` descending.
+
+### Fetch
+
+```json
+{
+  "resource": "tasktrace://worklogs/recent"
+}
+```
+
+### Return value
+
+```json
+[
+  {
+    "id": "01JRZXABCDEFGH123456789000",
+    "createdAt": "2026-04-14T10:30:00.000Z",
+    "updatedAt": "2026-04-14T10:30:00.000Z",
+    "eventIds": ["01JRZXAAA...", "01JRZXBBB..."],
+    "summary": "Refactored auth middleware to use interceptors",
+    "kind": "refactor",
+    "statusHint": "done",
+    "totalMinutes": 70,
+    "taskRef": "CU-abc123",
+    "branch": "CU-abc123/auth-refactor",
+    "commits": ["abc123def456789"],
+    "syncMode": "comment",
+    "syncStatus": "pending",
+    "tags": ["auth", "middleware"]
+  }
+]
+```
+
+### When to use
+
+Fetch this resource when the agent needs to:
+- Provide session context ("here's what you've done so far")
+- Check whether a task already has logged work before adding a duplicate
+- Summarize recent work for the user
+- Decide whether `worklog_consolidate` is needed
+
+---
+
+## Resource vs tool
+
+| | Resource | Tool |
+|---|---|---|
+| **Read/Write** | Read only | Read + Write |
+| **Side effects** | None | Yes (writes to storage) |
+| **Use case** | Agent context | Agent actions |
+| **Examples** | `tasktrace://config`, `tasktrace://worklogs/recent` | `worklog_add`, `worklog_consolidate` |

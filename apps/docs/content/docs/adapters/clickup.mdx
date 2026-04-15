@@ -1,0 +1,196 @@
+---
+title: ClickUp Adapter
+description: Sync TaskTrace entries to ClickUp as comments, subtasks, or new tasks.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+import { Steps, Step } from "fumadocs-ui/components/steps";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+
+## Package
+
+`@tasktrace/adapter-clickup`
+
+No extra HTTP client dependencies — uses the native `fetch` API.
+
+---
+
+## Setup
+
+<Steps>
+<Step>
+
+### Get your ClickUp API key
+
+In ClickUp: **Settings → Apps → API Token → Generate**.
+
+</Step>
+<Step>
+
+### Store the key securely
+
+```bash
+# ~/.tasktrace/config.json (never commit this file)
+{
+  "version": 1,
+  "providers": {
+    "clickup": {
+      "apiKey": "pk_your_api_key_here"
+    }
+  }
+}
+```
+
+Or via environment variable:
+
+```bash
+export TASKTRACE_CLICKUP_API_KEY=pk_your_api_key_here
+```
+
+</Step>
+<Step>
+
+### Configure the project
+
+```json title=".tasktracerc.json"
+{
+  "provider": {
+    "name": "clickup",
+    "config": {
+      "defaultListId": "901234567",
+      "workspaceId": "12345678",
+      "assignees": [1234567]
+    }
+  }
+}
+```
+
+</Step>
+<Step>
+
+### Test the connection
+
+```bash
+tt plan
+# If connection fails, you'll see a clear error with the missing config
+```
+
+</Step>
+</Steps>
+
+---
+
+## Configuration options
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `apiKey` | `string` | ✅ | ClickUp API key (global config or env var) |
+| `defaultListId` | `string` | ✅ | List ID for new task creation |
+| `workspaceId` | `string` | ❌ | Workspace ID (optional, for workspace-scoped calls) |
+| `assignees` | `number[]` | ❌ | Default assignee user IDs for new tasks |
+
+### Finding IDs
+
+**List ID:** Open the list in ClickUp → URL contains `.../li/{listId}`.
+
+**Workspace ID:** Open ClickUp → URL starts with `app.clickup.com/{workspaceId}/`.
+
+**User IDs:** ClickUp Settings → People → hover a user → check the URL.
+
+---
+
+## Sync modes
+
+The adapter supports three sync modes. The mode is chosen automatically via `suggestSyncMode()`
+or set in `defaults.syncMode`.
+
+### `comment` — Add to existing task
+
+For entries with a `taskRef`. Posts a Markdown comment to the linked task.
+
+**Auto-selected when:**  `taskRef` is set AND (`totalMinutes <= 120` AND `commits.length <= 3`)
+
+**Formatted comment:**
+
+```markdown
+## Work log — 2026-04-14
+
+**Summary:** Fixed auth timeout and refresh token flow
+**Duration:** 45 min | **Kind:** bugfix | **Branch:** CU-abc123/fix-auth
+
+**Commits:**
+- abc123def456
+
+**Tags:** auth, tokens
+```
+
+### `subtask` — Create subtask under parent
+
+For entries with a `taskRef` that represent a significant chunk of work.
+
+**Auto-selected when:** `taskRef` is set AND (`totalMinutes > 120` OR `commits.length > 3`)
+
+Creates a subtask under the linked parent task. The subtask name is the entry summary;
+the description is the formatted Markdown above.
+
+### `task` — Create new task
+
+For entries without a `taskRef` — exploratory work, cross-cutting concerns, etc.
+
+**Auto-selected when:** no `taskRef` present.
+
+Creates a new task in `defaultListId`. Name = entry summary. Description = full Markdown.
+
+---
+
+## Sync mode decision table
+
+| Has taskRef | Duration | Commits | Auto mode |
+|---|---|---|---|
+| No | any | any | `task` |
+| Yes | ≤ 120 min | ≤ 3 | `comment` |
+| Yes | > 120 min | any | `subtask` |
+| Yes | any | > 3 | `subtask` |
+
+Override for a project in `.tasktracerc.json`:
+
+```json
+{
+  "defaults": {
+    "syncMode": "comment"
+  }
+}
+```
+
+---
+
+## ClickUp API endpoints used
+
+| Method | Endpoint | Usage |
+|---|---|---|
+| `GET` | `/user` | `testConnection()` |
+| `GET` | `/task/{taskId}` | `resolveTask()` |
+| `POST` | `/list/{listId}/task` | `createTask()`, `syncAsNewTask()` |
+| `POST` | `/task/{taskId}/comment` | `syncAsComment()` |
+| `POST` | `/task/{taskId}/subtask` | `syncAsSubtask()` |
+
+All requests include `Authorization: {apiKey}` and `Content-Type: application/json`.
+
+<Callout type="warn">
+  The ClickUp adapter uses the **ClickUp API v2**. Personal API tokens (`pk_...`) work for
+  personal access. For team/workspace access, use a workspace token.
+</Callout>
+
+---
+
+## Error handling
+
+Common errors and their fixes:
+
+| Error | Cause | Fix |
+|---|---|---|
+| `Missing API key` | Key not set | Add to `~/.tasktrace/config.json` or set `TASKTRACE_CLICKUP_API_KEY` |
+| `Missing defaultListId` | List not configured | Add `provider.config.defaultListId` to `.tasktracerc.json` |
+| `401 Unauthorized` | Invalid API key | Regenerate key in ClickUp Settings |
+| `404 Not Found` | Wrong task ID or list ID | Verify IDs from ClickUp URLs |
+| `429 Too Many Requests` | Rate limit hit | TaskTrace does not auto-retry; wait and re-run `tt sync` |

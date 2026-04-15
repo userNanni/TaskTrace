@@ -1,0 +1,109 @@
+---
+title: CLI Overview
+description: Complete reference for the tt / tasktrace command-line interface.
+---
+
+import { Card, Cards } from "fumadocs-ui/components/card";
+import { Callout } from "fumadocs-ui/components/callout";
+
+## Commands
+
+TaskTrace exposes 8 commands via the `tt` (or `tasktrace`) binary:
+
+| Command | Description |
+|---|---|
+| [`tt init`](/docs/cli/init) | Scaffold config, storage dir, and git hooks |
+| [`tt add`](/docs/cli/add) | Capture a work event |
+| [`tt log`](/docs/cli/log) | List entries or raw events |
+| [`tt status`](/docs/cli/status) | Show worklog summary dashboard |
+| [`tt consolidate`](/docs/cli/consolidate) | Group pending events into entries |
+| [`tt attach`](/docs/cli/attach) | Link a commit SHA to an entry |
+| [`tt plan`](/docs/cli/plan) | Preview sync payload (dry-run) |
+| [`tt sync`](/docs/cli/sync) | Execute sync to task provider |
+
+---
+
+## Global flags
+
+All commands accept these flags:
+
+| Flag | Description |
+|---|---|
+| `--help`, `-h` | Show command help |
+| `--version`, `-v` | Show TaskTrace version |
+
+---
+
+## JSON output
+
+Every command supports `--json` for machine-readable output:
+
+```bash
+tt status --json
+tt log --json
+tt add -d "..." --json
+```
+
+Use `--json` when piping output to scripts or AI agents:
+
+```bash
+tt status --json | jq '.currentBranch'
+tt log --json | jq '.entries[].summary'
+```
+
+<Callout type="info">
+  The MCP server uses the same underlying engine as the CLI. Any action you can do with the CLI,
+  an AI agent can do via MCP tools.
+</Callout>
+
+---
+
+## Typical daily flow
+
+```bash
+# Morning: check where you left off
+tt status
+
+# During work: capture events (cheap, fast, messy is fine)
+tt add -d "investigated auth timeout — looks like a race condition"
+tt add -d "fixed: added mutex around token refresh" -k bugfix
+
+# After commit: link work to git
+tt attach
+
+# End of day: clean up and sync
+tt consolidate
+tt plan      # review before sending
+tt sync
+```
+
+---
+
+## Shell aliases
+
+Add to `~/.zshrc` or `~/.bashrc`:
+
+```bash
+alias tta="tt add -d"
+alias ttl="tt log"
+alias tts="tt status"
+alias ttc="tt consolidate"
+alias ttsy="tt sync"
+```
+
+Usage:
+
+```bash
+tta "fixed null ref in user loader" -k bugfix
+```
+
+<Cards>
+  <Card title="tt init" href="/docs/cli/init" description="Initialize a project with config and storage." />
+  <Card title="tt add" href="/docs/cli/add" description="Register a work event against the current branch." />
+  <Card title="tt log" href="/docs/cli/log" description="Browse entries and events with filters." />
+  <Card title="tt status" href="/docs/cli/status" description="Worklog health dashboard." />
+  <Card title="tt consolidate" href="/docs/cli/consolidate" description="Group events into clean entries." />
+  <Card title="tt attach" href="/docs/cli/attach" description="Bind a commit SHA to an entry." />
+  <Card title="tt plan" href="/docs/cli/plan" description="Dry-run preview of sync payload." />
+  <Card title="tt sync" href="/docs/cli/sync" description="Push entries to your task manager." />
+</Cards>

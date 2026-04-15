@@ -1,0 +1,113 @@
+---
+title: Core Package
+description: "@tasktrace/core — engine, types, Zod schemas, NDJSON storage, git integration, and consolidation logic."
+---
+
+import { Card, Cards } from "fumadocs-ui/components/card";
+import { Callout } from "fumadocs-ui/components/callout";
+
+## Overview
+
+`@tasktrace/core` is the foundation of TaskTrace. All other packages depend on it; it has
+**zero intra-monorepo dependencies**.
+
+```
+@tasktrace/cli
+@tasktrace/mcp-server        →  @tasktrace/core
+@tasktrace/adapter-clickup
+```
+
+## Exports
+
+Everything is exported from `@tasktrace/core`:
+
+```typescript
+import {
+  // Engine
+  WorklogEngine,
+
+  // Storage
+  FileStorageProvider,
+
+  // Config
+  loadConfig,
+  generateProjectConfig,
+  DEFAULT_CONFIG,
+  DEFAULT_CONSOLIDATION_GAP_MINUTES,
+
+  // Git
+  parseTaskRef,
+  detectProvider,
+  getCurrentBranch,
+  getCommitSha,
+  getCommitInfo,
+  isGitRepo,
+  installHooks,
+
+  // Consolidation
+  consolidateEvents,
+
+  // Paths
+  resolveStorageDir,
+  getStorageFilePath,
+  getGlobalConfigDir,
+  getGlobalConfigPath,
+
+  // Types (interfaces)
+  type WorklogSource,
+  type WorklogKind,
+  type WorklogStatusHint,
+  type SyncMode,
+  type SyncStatus,
+  type WorklogEvent,
+  type WorklogEntry,
+  type SyncState,
+  type TaskTraceConfig,
+  type TaskProviderAdapter,
+  type ProviderTask,
+  type CreateTaskParams,
+  type SyncResult,
+  type AddEventInput,
+  type EventFilter,
+  type EntryFilter,
+  type ConsolidateOptions,
+  type SyncPlan,
+  type SyncPlanItem,
+  type WorklogStatus,
+} from "@tasktrace/core";
+```
+
+## Runtime compatibility
+
+Core targets **Bun-native** execution with Node.js compatibility via conditional exports:
+
+```json
+{
+  "exports": {
+    ".": {
+      "bun": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  }
+}
+```
+
+This means:
+- Bun: runs TypeScript directly, no build step needed in development
+- Node.js: requires `dist/` build output
+
+## Internal dependencies
+
+| Dependency | Purpose |
+|---|---|
+| `ulid` | Sortable, collision-free IDs |
+| `zod` | Runtime schema validation at all data boundaries |
+| `proper-lockfile` | Concurrent-safe NDJSON writes |
+
+No HTTP clients, no LLM SDKs, no external APIs.
+
+<Cards>
+  <Card title="Data Model" href="/docs/core/data-model" description="WorklogEvent, WorklogEntry, SyncState — the three-layer storage schema." />
+  <Card title="WorklogEngine" href="/docs/core/engine" description="The main class. All CLI commands and MCP tools go through this." />
+  <Card title="Storage" href="/docs/core/storage" description="NDJSON append-only files, file locking, and JSON config." />
+</Cards>

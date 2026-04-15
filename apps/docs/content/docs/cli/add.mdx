@@ -1,0 +1,110 @@
+---
+title: tt add
+description: Register a work event against the current branch and optional task reference.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+## Synopsis
+
+```bash
+tt add -d <description> [options]
+tasktrace add -d <description> [options]
+```
+
+## Description
+
+Captures a single work event. Events are raw, append-only, and intentionally low-friction.
+Write messy notes. Fix them later with `tt consolidate`.
+
+Events are linked to the current git branch automatically. If the branch name matches a configured pattern (e.g. `CU-abc123/fix-auth`), the task reference is extracted and stored.
+
+## Options
+
+| Flag | Alias | Type | Default | Description |
+|---|---|---|---|---|
+| `--description` | `-d` | `string` | **required** | What you did |
+| `--kind` | `-k` | `WorklogKind` | `implementation` | Type of work |
+| `--source` | `-s` | `WorklogSource` | `manual` | Who created the event |
+| `--duration` | `-t` | `number` | — | Duration in minutes |
+| `--taskRef` | `-r` | `string` | _(from branch)_ | Task reference override |
+| `--tags` | | `string` | — | Comma-separated tags |
+| `--json` | | `boolean` | `false` | Output as JSON |
+
+## WorklogKind values
+
+| Value | Use case |
+|---|---|
+| `investigation` | Research, reading docs, understanding a bug |
+| `implementation` | Writing new code or features |
+| `bugfix` | Fixing a bug |
+| `refactor` | Improving code without changing behavior |
+| `review` | Code review, PR feedback |
+| `documentation` | Writing docs, comments, changelogs |
+| `meeting` | Standups, syncs, planning |
+| `support` | Helping teammates, answering questions |
+
+## WorklogSource values
+
+| Value | Description |
+|---|---|
+| `manual` | Typed by a human (default) |
+| `ai` | Created by an AI agent |
+| `git` | Created by a git hook |
+| `system` | Created by an automated system |
+
+## Examples
+
+```bash
+# Minimal — description only
+tt add -d "investigated the auth timeout issue"
+
+# With kind
+tt add -d "fixed null ref in token refresh" -k bugfix
+
+# With duration
+tt add -d "pair programmed the auth refactor" -k implementation -t 90
+
+# With tags
+tt add -d "reviewed PR #47 for token caching" -k review --tags "auth,tokens"
+
+# Override task ref (useful when branch name doesn't match)
+tt add -d "hotfix for prod" -k bugfix -r "CU-xyz789"
+
+# JSON output
+tt add -d "standup sync" -k meeting --json
+```
+
+### JSON output example
+
+```json
+{
+  "id": "01JRZXABCDEFGH123456789000",
+  "timestamp": "2026-04-14T09:30:00.000Z",
+  "source": "manual",
+  "kind": "bugfix",
+  "description": "fixed null ref in token refresh",
+  "branch": "CU-abc123/fix-auth",
+  "taskRef": "CU-abc123",
+  "durationMinutes": null,
+  "tags": [],
+  "commitSha": null
+}
+```
+
+<Callout type="info">
+  Events are stored in `.tasktrace/events.ndjson` as append-only NDJSON records. They are never
+  modified after creation. Only entries (created by `tt consolidate`) are mutable.
+</Callout>
+
+## Tips
+
+**Write fast, fix later.** Event descriptions don't need to be perfect. Run `tt consolidate` (or ask an AI agent) to clean them up into entries.
+
+**AI agents use `--source ai`.** If you're building automation, always pass `--source ai` so events are identifiable:
+
+```bash
+tt add -d "refactored auth middleware to use interceptors" -k refactor --source ai
+```
+
+**Multiple events, one session.** Capture as many events as you want in a session. `tt consolidate` groups them by branch + time gap into a single entry.

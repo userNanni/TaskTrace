@@ -1,0 +1,144 @@
+---
+title: tt consolidate
+description: Group pending raw events into clean, sync-ready WorklogEntries.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+## Synopsis
+
+```bash
+tt consolidate [options]
+tasktrace consolidate [options]
+```
+
+## Description
+
+Groups pending events into `WorklogEntry` records. This is the bridge between raw event
+capture and sync-ready output.
+
+**Consolidation algorithm:**
+
+1. Find all events not yet consolidated
+2. Group by `branch + taskRef` combination
+3. Within each group, split on time gaps (default: 240 minutes)
+4. Each sub-group becomes one entry
+
+<Callout type="info">
+  Consolidation is idempotent. Running it twice does not duplicate entries — events already
+  included in an entry are skipped.
+</Callout>
+
+## Options
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--dry-run` | `boolean` | `false` | Preview without writing entries |
+| `--gap` | `number` | `240` | Minutes of silence that split one session into two entries |
+| `--json` | `boolean` | `false` | Output as JSON |
+
+## Examples
+
+```bash
+# Consolidate all pending events
+tt consolidate
+
+# Preview without writing
+tt consolidate --dry-run
+
+# Use a shorter gap (split sessions at 1 hour of silence)
+tt consolidate --gap 60
+
+# JSON output (for AI agents)
+tt consolidate --json
+```
+
+## Output
+
+```
+Consolidating 5 pending events...
+
+  ✔ CU-abc123/fix-auth  →  3 events  →  1 entry
+      "Fixed auth timeout and refresh token flow"
+      Duration: 45 min · Kind: bugfix
+
+  ✔ main  →  2 events  →  1 entry
+      "Updated README and configuration docs"
+      Duration: 20 min · Kind: documentation
+
+Created 2 entries.
+```
+
+## JSON output structure
+
+```json
+{
+  "createdEntries": [
+    {
+      "id": "01JRZXABCDEFGH123456789000",
+      "summary": "Fixed auth timeout and refresh token flow",
+      "kind": "bugfix",
+      "branch": "CU-abc123/fix-auth",
+      "taskRef": "CU-abc123",
+      "eventIds": ["01JRZXAAA...", "01JRZXBBB...", "01JRZXCCC..."],
+      "totalMinutes": 45,
+      "syncStatus": "pending"
+    }
+  ],
+  "skippedEvents": 0,
+  "totalProcessed": 5
+}
+```
+
+## The gap parameter
+
+The `--gap` value controls how "session-aware" consolidation is.
+
+| Gap | Effect |
+|---|---|
+| `60` (1 hour) | Tight sessions — lunch break creates separate entries |
+| `240` (4 hours, default) | Work-day sessions — one entry per feature per day |
+| `1440` (24 hours) | One entry per feature regardless of breaks |
+
+**Example with `--gap 60`:**
+
+```
+09:00  tt add -d "started investigating auth bug"
+10:30  tt add -d "found root cause: race condition"
+-- 2h lunch break --
+12:30  tt add -d "implemented fix"
+13:15  tt add -d "wrote tests"
+```
+
+With `--gap 60`:  → 2 entries (before/after lunch)
+With `--gap 240`: → 1 entry (whole day as one session)
+
+## After consolidation
+
+Entries start with `syncStatus: pending`. Next steps:
+
+```bash
+# Link commits to entries
+tt attach
+
+# Review what will be sent
+tt plan
+
+# Sync to ClickUp
+tt sync
+```
+
+## AI agent usage
+
+AI agents (via MCP or CLI) can call consolidate and then improve the generated summary:
+
+```bash
+# 1. Consolidate
+tt consolidate --json > entries.json
+
+# 2. AI improves summaries (external step)
+# 3. Update entries with improved descriptions (via engine API)
+
+# 4. Sync
+tt sync
+```

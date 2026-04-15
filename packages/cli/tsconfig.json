@@ -2,10 +2,7 @@
 	"extends": "../../tsconfig.base.json",
 	"compilerOptions": {
 		"outDir": "dist",
-		"paths": {
-			"@tasktrace/core": ["../core/src/index.ts"],
-			"@tasktrace/adapter-clickup": ["../adapter-clickup/src/index.ts"]
-		}
+		"rootDir": "src"
 	},
 	"include": ["src"]
 }

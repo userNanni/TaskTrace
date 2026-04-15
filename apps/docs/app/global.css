@@ -1,0 +1,17 @@
+@import "tailwindcss";
+@import "fumadocs-ui/style.css";
+
+/*
+  Override Tailwind v4's default dark variant (prefers-color-scheme media query)
+  to match fumadocs-ui's class-based strategy. Without this, Tailwind-compiled
+  dark: utilities in the app respond to OS media query, not to next-themes toggling
+  the .dark class on <html>.
+*/
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}

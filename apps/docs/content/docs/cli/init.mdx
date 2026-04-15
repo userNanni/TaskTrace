@@ -1,0 +1,98 @@
+---
+title: tt init
+description: Scaffold TaskTrace config, storage directory, and optional git hooks in a project.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+## Synopsis
+
+```bash
+tt init [options]
+tasktrace init [options]
+```
+
+## Description
+
+Initializes TaskTrace in the current directory (or `--dir`). Creates:
+
+- `.tasktracerc.json` — project configuration file (commit this)
+- `.tasktrace/` — local storage directory (gitignore this)
+
+Optionally installs git hooks via Husky.
+
+## Options
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--dir` | `string` | `.` | Target directory |
+| `--hooks` | `boolean` | `false` | Install git hooks (requires Husky) |
+
+## Examples
+
+```bash
+# Basic init in current directory
+tt init
+
+# Init in a specific directory
+tt init --dir /path/to/project
+
+# Init and install git hooks
+tt init --hooks
+```
+
+## What it creates
+
+### `.tasktracerc.json`
+
+```json
+{
+  "version": 1,
+  "storage": {
+    "dir": ".tasktrace"
+  },
+  "git": {
+    "branchPatterns": [
+      "CU-([a-zA-Z0-9]+)",
+      "([A-Z]+-\\d+)",
+      "#(\\d+)"
+    ],
+    "hooks": {
+      "preCommit": false,
+      "postCommit": false
+    }
+  },
+  "defaults": {
+    "syncMode": "comment",
+    "kind": "implementation",
+    "consolidationGapMinutes": 240
+  }
+}
+```
+
+### `.tasktrace/` directory
+
+```
+.tasktrace/
+├── events.ndjson      # Raw work events (append-only)
+├── entries.ndjson     # Consolidated entries
+└── sync-state.json    # Sync tracking
+```
+
+### Git hook (when `--hooks` is passed)
+
+Installs a **post-commit hook** that automatically runs `tt attach` after every commit, linking the commit SHA to the current entry.
+
+<Callout type="info">
+  Hook installation requires Husky. Run `bunx husky init` or `npx husky init` before using
+  `--hooks` if Husky is not yet set up.
+</Callout>
+
+## Recommended `.gitignore` additions
+
+```bash
+# TaskTrace local storage (personal worklog data)
+.tasktrace/
+```
+
+Keep `.tasktracerc.json` in version control so teammates share provider config and branch patterns.

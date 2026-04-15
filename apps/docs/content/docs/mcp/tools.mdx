@@ -1,0 +1,265 @@
+---
+title: MCP Tools
+description: Full reference for all five TaskTrace MCP tools available to AI agents.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+## Overview
+
+All tools use JSON-RPC over stdio. Parameters and return values are JSON objects.
+The MCP SDK validates all inputs — invalid calls return a structured error.
+
+---
+
+## `worklog_add`
+
+Add a work event to the project worklog.
+
+### Parameters
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `description` | `string` | ✅ | What was done |
+| `kind` | `WorklogKind` | ✅ | Type of work |
+| `durationMinutes` | `number` | ❌ | Time spent in minutes |
+| `tags` | `string[]` | ❌ | Classification tags |
+| `taskRef` | `string` | ❌ | Task reference override (e.g. `CU-abc123`) |
+
+### `WorklogKind` values
+
+`investigation` · `implementation` · `bugfix` · `refactor` · `review` · `documentation` · `meeting` · `support`
+
+### Example call
+
+```json
+{
+  "tool": "worklog_add",
+  "arguments": {
+    "description": "Refactored auth middleware to use interceptors instead of manual token injection",
+    "kind": "refactor",
+    "durationMinutes": 35,
+    "tags": ["auth", "middleware"]
+  }
+}
+```
+
+### Return value
+
+```json
+{
+  "id": "01JRZXABCDEFGH123456789000",
+  "timestamp": "2026-04-14T10:30:00.000Z",
+  "source": "ai",
+  "kind": "refactor",
+  "description": "Refactored auth middleware to use interceptors instead of manual token injection",
+  "branch": "CU-abc123/auth-refactor",
+  "taskRef": "CU-abc123",
+  "durationMinutes": 35,
+  "tags": ["auth", "middleware"],
+  "commitSha": null
+}
+```
+
+<Callout type="info">
+  The MCP server always sets `source: "ai"` on events created via MCP tools — regardless of
+  what the agent passes. This makes agent-created events auditable.
+</Callout>
+
+---
+
+## `worklog_consolidate`
+
+Group pending raw events into consolidated `WorklogEntry` records.
+
+### Parameters
+
+| Name | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `dryRun` | `boolean` | ❌ | `false` | Preview without writing |
+| `gapMinutes` | `number` | ❌ | `240` | Session gap in minutes |
+
+### Example call
+
+```json
+{
+  "tool": "worklog_consolidate",
+  "arguments": {
+    "dryRun": false,
+    "gapMinutes": 120
+  }
+}
+```
+
+### Return value
+
+```json
+{
+  "createdEntries": [
+    {
+      "id": "01JRZXABCDEFGH123456789000",
+      "summary": "Refactored auth middleware to use interceptors",
+      "kind": "refactor",
+      "branch": "CU-abc123/auth-refactor",
+      "taskRef": "CU-abc123",
+      "eventIds": ["01JRZXAAA...", "01JRZXBBB..."],
+      "totalMinutes": 70,
+      "syncStatus": "pending"
+    }
+  ],
+  "skippedEvents": 0,
+  "totalProcessed": 2
+}
+```
+
+---
+
+## `worklog_attach_commit`
+
+Link a git commit SHA to an entry. Call this after making a commit.
+
+### Parameters
+
+| Name | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `sha` | `string` | ❌ | `HEAD` | Commit SHA to attach |
+| `entryId` | `string` | ❌ | _(latest)_ | Entry ID to attach to |
+
+### Example call
+
+```json
+{
+  "tool": "worklog_attach_commit",
+  "arguments": {
+    "sha": "abc123def456789"
+  }
+}
+```
+
+### Return value
+
+```json
+{
+  "entryId": "01JRZXABCDEFGH123456789000",
+  "commitSha": "abc123def456789",
+  "branch": "CU-abc123/auth-refactor",
+  "summary": "Refactored auth middleware to use interceptors"
+}
+```
+
+---
+
+## `worklog_log`
+
+List entries or raw events with optional filters.
+
+### Parameters
+
+| Name | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `events` | `boolean` | ❌ | `false` | Return raw events instead of entries |
+| `branch` | `string` | ❌ | — | Filter by branch |
+| `taskRef` | `string` | ❌ | — | Filter by task reference |
+| `kind` | `WorklogKind` | ❌ | — | Filter by event/entry kind |
+| `syncStatus` | `SyncStatus` | ❌ | — | Filter by sync status |
+| `since` | `string` | ❌ | — | ISO 8601 date filter |
+| `limit` | `number` | ❌ | `20` | Maximum results |
+
+### `SyncStatus` values
+
+`pending` · `planned` · `synced` · `failed` · `ignored`
+
+### Example call
+
+```json
+{
+  "tool": "worklog_log",
+  "arguments": {
+    "taskRef": "CU-abc123",
+    "limit": 5
+  }
+}
+```
+
+### Return value
+
+```json
+{
+  "entries": [
+    {
+      "id": "01JRZXABCDEFGH123456789000",
+      "summary": "Refactored auth middleware to use interceptors",
+      "kind": "refactor",
+      "branch": "CU-abc123/auth-refactor",
+      "taskRef": "CU-abc123",
+      "totalMinutes": 70,
+      "commits": ["abc123def456789"],
+      "syncStatus": "pending",
+      "createdAt": "2026-04-14T10:30:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+## `worklog_status`
+
+Get a summary of the project's worklog state.
+
+### Parameters
+
+None.
+
+### Example call
+
+```json
+{
+  "tool": "worklog_status",
+  "arguments": {}
+}
+```
+
+### Return value
+
+```json
+{
+  "storageDir": ".tasktrace",
+  "totalEvents": 14,
+  "consolidatedEvents": 12,
+  "pendingEvents": 2,
+  "totalEntries": 5,
+  "syncedEntries": 3,
+  "plannedEntries": 1,
+  "pendingEntries": 1,
+  "currentBranch": "CU-abc123/auth-refactor",
+  "taskRef": "CU-abc123",
+  "lastEventAt": "2026-04-14T10:30:00.000Z",
+  "lastSyncAt": "2026-04-13T17:30:00.000Z"
+}
+```
+
+---
+
+## Agent usage patterns
+
+### Log work as you go
+
+Call `worklog_add` after completing each meaningful step — not just at the end of a session:
+
+```
+implement feature part A → worklog_add("implemented X", kind="implementation")
+fix discovered bug      → worklog_add("fixed Y edge case", kind="bugfix")
+write tests             → worklog_add("added tests for X", kind="implementation")
+git commit              → worklog_attach_commit()
+```
+
+### Session wrap-up
+
+At the end of a coding session, consolidate and report to the user:
+
+```
+worklog_consolidate()
+worklog_status()
+→ "Done. Logged 3 events → 1 entry (CU-abc123, 75 min). Run `tt sync` to send to ClickUp."
+```

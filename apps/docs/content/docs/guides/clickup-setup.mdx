@@ -1,0 +1,248 @@
+---
+title: ClickUp setup
+description: End-to-end ClickUp configuration — API key, list ID, workspace ID, and sync verification.
+---
+
+import { Steps, Step } from "fumadocs-ui/components/steps";
+import { Callout } from "fumadocs-ui/components/callout";
+
+## Overview
+
+TaskTrace syncs to ClickUp via `@tasktrace/adapter-clickup`. It uses the
+[ClickUp API v2](https://clickup.com/api/) with a personal token — no OAuth required.
+
+---
+
+## Setup
+
+<Steps>
+<Step>
+
+### Generate a ClickUp API key
+
+1. Go to ClickUp → **Settings** → **Apps**
+2. Click **Generate** under **API Token**
+3. Copy the key (starts with `pk_`)
+
+</Step>
+<Step>
+
+### Store the API key
+
+```bash
+mkdir -p ~/.tasktrace
+```
+
+Create `~/.tasktrace/config.json`:
+
+```json
+{
+  "version": 1,
+  "providers": {
+    "clickup": {
+      "apiKey": "pk_your_api_key_here"
+    }
+  }
+}
+```
+
+Or set the environment variable:
+
+```bash
+export TASKTRACE_CLICKUP_API_KEY=pk_your_api_key_here
+```
+
+<Callout type="warn">
+  Never put your API key in `.tasktracerc.json` — that file is committed to git.
+  Use `~/.tasktrace/config.json` or an environment variable.
+</Callout>
+
+</Step>
+<Step>
+
+### Find your ClickUp list ID
+
+Open the target list in ClickUp. The URL looks like:
+
+```
+https://app.clickup.com/12345678/v/li/901234567
+                          ^^^^^^^^     ^^^^^^^^^
+                          workspace    list ID
+```
+
+Copy the list ID (`901234567` in this example).
+
+</Step>
+<Step>
+
+### Configure the project
+
+```json title=".tasktracerc.json"
+{
+  "version": 1,
+  "provider": {
+    "name": "clickup",
+    "config": {
+      "defaultListId": "901234567"
+    }
+  }
+}
+```
+
+Optional fields:
+
+```json
+{
+  "provider": {
+    "name": "clickup",
+    "config": {
+      "defaultListId": "901234567",
+      "workspaceId": "12345678",
+      "assignees": [1234567, 7654321]
+    }
+  }
+}
+```
+
+</Step>
+<Step>
+
+### Test the connection
+
+```bash
+tt plan
+```
+
+If the API key and list ID are correct, you'll see the sync plan.
+If not, you'll see a clear error:
+
+```
+✗ ClickUp connection failed: 401 Unauthorized
+  Check your API key in ~/.tasktrace/config.json or TASKTRACE_CLICKUP_API_KEY
+```
+
+</Step>
+</Steps>
+
+---
+
+## Finding ClickUp IDs
+
+### List ID
+
+From the ClickUp URL: `app.clickup.com/{workspaceId}/v/li/{listId}`
+
+### Task ID
+
+From a task URL: `app.clickup.com/t/{taskId}`
+
+Or from the branch name — if your branches follow `CU-{taskId}/description`, the task ID
+is extracted automatically.
+
+### User IDs (for assignees)
+
+1. ClickUp → Settings → People
+2. Hover over a team member
+3. The user ID appears in the URL or profile
+
+### Workspace ID
+
+From any ClickUp URL: `app.clickup.com/{workspaceId}/...`
+
+---
+
+## Branch-to-task linking
+
+For automatic task linking, name branches with the ClickUp task ID:
+
+```bash
+git checkout -b CU-abc123/implement-auth-refresh
+```
+
+When you run `tt add`, TaskTrace extracts `CU-abc123` from the branch name and stores it as
+`taskRef` on the event. This means:
+
+- All events on this branch are automatically tied to `CU-abc123`
+- `tt sync` knows to post to that task (as comment or subtask)
+- No manual `--taskRef` flag needed
+
+---
+
+## Sync modes
+
+| Mode | When | Result in ClickUp |
+|---|---|---|
+| `comment` | Short session (≤120 min, ≤3 commits) with taskRef | Comment added to the task |
+| `subtask` | Long session (>120 min or >3 commits) with taskRef | New subtask created under parent |
+| `task` | No taskRef | New task created in `defaultListId` |
+| `skip` | Manually excluded | Nothing sent |
+
+Override the default for a project:
+
+```json title=".tasktracerc.json"
+{
+  "defaults": {
+    "syncMode": "comment"
+  }
+}
+```
+
+---
+
+## Verifying syncs
+
+After running `tt sync`, check the result:
+
+```bash
+tt log --json | jq '.entries[] | select(.syncStatus == "synced") | {summary, taskRef, syncMode}'
+```
+
+Or view the sync state directly:
+
+```bash
+cat .tasktrace/sync-state.json | jq .
+```
+
+---
+
+## Re-syncing a failed entry
+
+If a sync fails (network error, rate limit, etc.):
+
+```bash
+# Find the failed entry
+tt log --json | jq '.entries[] | select(.syncStatus == "failed") | .id'
+
+# Retry
+tt sync --entry <entry-id>
+```
+
+---
+
+## Example: complete ClickUp workflow
+
+```bash
+# 1. Start a task branch
+git checkout -b CU-abc123/refactor-user-loader
+
+# 2. Log work during the session
+tt add -d "identified N+1 query in user list endpoint" -k investigation
+tt add -d "replaced N+1 with single join query" -k refactor -t 60
+
+# 3. Commit and link
+git add -A && git commit -m "perf: replace N+1 with join in user list"
+tt attach
+
+# 4. Consolidate and preview
+tt consolidate
+tt plan
+# Preview:
+#   ① entry → comment on CU-abc123
+#     "Identified and fixed N+1 query in user list endpoint"
+#     Duration: 60 min · Kind: refactor · Commits: abc123
+
+# 5. Sync
+tt sync
+# ✔ Posted comment to CU-abc123
+#   https://app.clickup.com/t/CU-abc123
+```
