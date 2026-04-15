@@ -4,17 +4,19 @@ import { syncStatusSchema, worklogKindSchema } from "@tasktrace/core";
 import { z } from "zod";
 
 export function registerQueryTools(server: McpServer, engine: WorklogEngine): void {
-	server.tool(
+	server.registerTool(
 		"worklog_log",
-		"List worklog entries with optional filters",
 		{
-			branch: z.string().optional().describe("Filter by branch name"),
-			taskRef: z.string().optional().describe("Filter by task reference"),
-			kind: worklogKindSchema.optional().describe("Filter by work type"),
-			syncStatus: syncStatusSchema.optional().describe("Filter by sync status"),
-			since: z.string().optional().describe("Filter since date (ISO format)"),
-			limit: z.number().positive().optional().default(20).describe("Maximum entries to return"),
-			showEvents: z.boolean().optional().describe("Show raw events instead of entries"),
+			description: "List worklog entries with optional filters",
+			inputSchema: {
+				branch: z.string().optional().describe("Filter by branch name"),
+				taskRef: z.string().optional().describe("Filter by task reference"),
+				kind: worklogKindSchema.optional().describe("Filter by work type"),
+				syncStatus: syncStatusSchema.optional().describe("Filter by sync status"),
+				since: z.string().optional().describe("Filter since date (ISO format)"),
+				limit: z.number().positive().optional().default(20).describe("Maximum entries to return"),
+				showEvents: z.boolean().optional().describe("Show raw events instead of entries"),
+			},
 		},
 		async (input) => {
 			const filter = {
@@ -40,10 +42,11 @@ export function registerQueryTools(server: McpServer, engine: WorklogEngine): vo
 		},
 	);
 
-	server.tool(
+	server.registerTool(
 		"worklog_status",
-		"Get a summary of the worklog state for the current project",
-		{},
+		{
+			description: "Get a summary of the worklog state for the current project",
+		},
 		async () => {
 			const status = await engine.status();
 			return {

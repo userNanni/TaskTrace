@@ -233,13 +233,12 @@ export class WorklogEngine {
 
 			try {
 				const result = await adapter.syncEntry(item.entry, mode);
+				const syncStatus = result.success ? "synced" : "failed";
 
-				await this.updateEntry(item.entry.id, {
-					syncStatus: result.success ? "synced" : "failed",
-				});
+				await this.updateEntry(item.entry.id, { syncStatus });
 
 				syncState.entries[item.entry.id] = {
-					syncStatus: result.success ? "synced" : "failed",
+					syncStatus,
 					syncMode: mode,
 					providerRef: result.providerRef,
 					syncedAt: new Date().toISOString(),

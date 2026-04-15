@@ -1,30 +1,30 @@
 {
-  "name": "@tasktrace/docs",
-  "version": "0.0.1",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "build": "bun scripts/generate-llms.ts && vite build",
-    "dev": "vite dev --port 3001",
-    "start": "node .output/server/index.mjs",
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@tanstack/react-router": "^1.114.0",
-    "@tanstack/react-start": "^1.114.0",
-    "fumadocs-core": "^15.0.0",
-    "fumadocs-mdx": "^14.0.0",
-    "fumadocs-ui": "^15.0.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0"
-  },
-  "devDependencies": {
-    "@tailwindcss/vite": "^4.0.0",
-    "@types/node": "^22.0.0",
-    "@types/react": "^19.1.0",
-    "@types/react-dom": "^19.1.0",
-    "tailwindcss": "^4.0.0",
-    "typescript": "^5.8.3",
-    "vite": "^8.0.0"
-  }
+	"name": "@tasktrace/docs",
+	"version": "0.0.1",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "bun scripts/generate-llms.ts && vite build",
+		"dev": "vite dev --port 3001",
+		"start": "node .output/server/index.mjs",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@tanstack/react-router": "^1.114.0",
+		"@tanstack/react-start": "^1.114.0",
+		"fumadocs-core": "^15.0.0",
+		"fumadocs-mdx": "^14.0.0",
+		"fumadocs-ui": "^15.0.0",
+		"react": "^19.1.0",
+		"react-dom": "^19.1.0"
+	},
+	"devDependencies": {
+		"@tailwindcss/vite": "^4.0.0",
+		"@types/node": "^22.0.0",
+		"@types/react": "^19.1.0",
+		"@types/react-dom": "^19.1.0",
+		"tailwindcss": "^4.0.0",
+		"typescript": "^5.8.3",
+		"vite": "^8.0.0"
+	}
 }

@@ -1,4 +1,4 @@
 {
-  "title": "Guides",
-  "pages": ["index", "git-workflow", "claude-code", "ai-agents", "clickup-setup", "scripting"]
+	"title": "Guides",
+	"pages": ["index", "git-workflow", "claude-code", "ai-agents", "clickup-setup", "scripting"]
 }

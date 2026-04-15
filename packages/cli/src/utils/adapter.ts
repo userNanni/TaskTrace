@@ -24,9 +24,7 @@ export async function loadAdapter(config: TaskTraceConfig): Promise<TaskProvider
 		case "clickup":
 			return loadClickUpAdapter(config);
 		default:
-			throw new Error(
-				`Unknown provider: "${config.provider.name}". Supported: clickup`,
-			);
+			throw new Error(`Unknown provider: "${config.provider.name}". Supported: clickup`);
 	}
 }
 
@@ -37,8 +35,7 @@ async function loadClickUpAdapter(config: TaskTraceConfig): Promise<TaskProvider
 
 	// Resolve API key: env var takes priority
 	const apiKey =
-		process.env.TASKTRACE_CLICKUP_API_KEY ??
-		(providerConfig.apiKey as string | undefined);
+		process.env.TASKTRACE_CLICKUP_API_KEY ?? (providerConfig.apiKey as string | undefined);
 
 	if (!apiKey) {
 		throw new Error(

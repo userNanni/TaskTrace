@@ -1,14 +1,14 @@
 {
-  "title": "TaskTrace",
-  "pages": [
-    "index",
-    "installation",
-    "configuration",
-    "---Getting Started",
-    "cli",
-    "mcp",
-    "adapters",
-    "core",
-    "guides"
-  ]
+	"title": "TaskTrace",
+	"pages": [
+		"index",
+		"installation",
+		"configuration",
+		"---Getting Started",
+		"cli",
+		"mcp",
+		"adapters",
+		"core",
+		"guides"
+	]
 }

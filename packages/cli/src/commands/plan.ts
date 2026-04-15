@@ -1,3 +1,4 @@
+import type { TaskProviderAdapter } from "@tasktrace/core";
 import { loadConfig } from "@tasktrace/core";
 import { defineCommand } from "citty";
 import pc from "picocolors";
@@ -20,7 +21,7 @@ export const planCommand = defineCommand({
 		const config = await loadConfig();
 		const engine = await createEngine();
 
-		let adapter;
+		let adapter: TaskProviderAdapter;
 		try {
 			adapter = await loadAdapter(config);
 		} catch (err) {
@@ -41,7 +42,9 @@ export const planCommand = defineCommand({
 			return;
 		}
 
-		console.log(pc.bold(`Sync plan (${plan.items.length} entr${plan.items.length === 1 ? "y" : "ies"}):`));
+		console.log(
+			pc.bold(`Sync plan (${plan.items.length} entr${plan.items.length === 1 ? "y" : "ies"}):`),
+		);
 		console.log("");
 
 		for (const item of plan.items) {

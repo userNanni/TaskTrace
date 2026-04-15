@@ -1,3 +1,4 @@
+import type { EntryFilter, EventFilter, WorklogEngine } from "@tasktrace/core";
 import { defineCommand } from "citty";
 import pc from "picocolors";
 import { createEngine } from "../utils/engine.js";
@@ -50,43 +51,57 @@ export const logCommand = defineCommand({
 		};
 
 		if (args.events) {
-			const events = await engine.listEvents(filter);
-
-			if (args.json) {
-				console.log(JSON.stringify(events, null, 2));
-				return;
-			}
-
-			if (events.length === 0) {
-				console.log(pc.dim("No events found."));
-				return;
-			}
-
-			console.log(pc.bold(`Events (${events.length}):`));
-			console.log("");
-			for (const event of events) {
-				console.log(`  ${formatEvent(event)}`);
-			}
+			await printEvents(engine, filter, args.json);
 		} else {
-			const entries = await engine.listEntries(filter);
-
-			if (args.json) {
-				console.log(JSON.stringify(entries, null, 2));
-				return;
-			}
-
-			if (entries.length === 0) {
-				console.log(
-					pc.dim("No entries found. Run 'tt consolidate' to create entries from events."),
-				);
-				return;
-			}
-
-			console.log(pc.bold(`Entries (${entries.length}):`));
-			console.log("");
-			for (const entry of entries) {
-				console.log(`  ${formatEntry(entry)}`);
-			}
+			await printEntries(engine, filter, args.json);
 		}
 	},
 });
+
+async function printEvents(
+	engine: WorklogEngine,
+	filter: EventFilter,
+	json: boolean,
+): Promise<void> {
+	const events = await engine.listEvents(filter);
+
+	if (json) {
+		console.log(JSON.stringify(events, null, 2));
+		return;
+	}
+
+	if (events.length === 0) {
+		console.log(pc.dim("No events found."));
+		return;
+	}
+
+	console.log(pc.bold(`Events (${events.length}):`));
+	console.log("");
+	for (const event of events) {
+		console.log(`  ${formatEvent(event)}`);
+	}
+}
+
+async function printEntries(
+	engine: WorklogEngine,
+	filter: EntryFilter,
+	json: boolean,
+): Promise<void> {
+	const entries = await engine.listEntries(filter);
+
+	if (json) {
+		console.log(JSON.stringify(entries, null, 2));
+		return;
+	}
+
+	if (entries.length === 0) {
+		console.log(pc.dim("No entries found. Run 'tt consolidate' to create entries from events."));
+		return;
+	}
+
+	console.log(pc.bold(`Entries (${entries.length}):`));
+	console.log("");
+	for (const entry of entries) {
+		console.log(`  ${formatEntry(entry)}`);
+	}
+}

@@ -1,3 +1,4 @@
+import type { SyncPlan, SyncResult, TaskProviderAdapter } from "@tasktrace/core";
 import { loadConfig } from "@tasktrace/core";
 import { defineCommand } from "citty";
 import pc from "picocolors";
@@ -30,7 +31,7 @@ export const syncCommand = defineCommand({
 		const config = await loadConfig();
 		const engine = await createEngine();
 
-		let adapter;
+		let adapter: TaskProviderAdapter;
 		try {
 			adapter = await loadAdapter(config);
 		} catch (err) {
@@ -50,23 +51,14 @@ export const syncCommand = defineCommand({
 		// If dry-run, just show plan
 		if (args.dryRun) {
 			const plan = await engine.planSync(adapter);
-			if (args.json) {
-				console.log(JSON.stringify(plan, null, 2));
-			} else {
-				console.log(pc.yellow("[dry-run]"), `Would sync ${plan.items.length} entries.`);
-				for (const item of plan.items) {
-					console.log(`  ${pc.cyan(item.suggestedMode)} ${item.entry.summary}`);
-				}
-			}
+			printDryRunPlan(plan, args.json);
 			return;
 		}
 
-		// If specific entry requested, update its sync mode first
+		// If specific entry requested, verify it exists
 		if (args.entry) {
 			const entries = await engine.listEntries();
-			const target = entries.find(
-				(e) => e.id === args.entry || e.id.endsWith(args.entry ?? ""),
-			);
+			const target = entries.find((e) => e.id === args.entry || e.id.endsWith(args.entry ?? ""));
 			if (!target) {
 				console.error(pc.red(`Entry not found: ${args.entry}`));
 				process.exit(1);
@@ -77,15 +69,15 @@ export const syncCommand = defineCommand({
 		const plan = await engine.planSync(adapter);
 
 		if (plan.items.length === 0) {
-			if (args.json) {
-				console.log(JSON.stringify({ results: [], message: "Nothing to sync" }));
-			} else {
-				console.log(pc.dim("Nothing to sync. All entries are up to date."));
-			}
+			printEmptyPlan(args.json);
 			return;
 		}
 
-		console.log(pc.bold(`Syncing ${plan.items.length} entr${plan.items.length === 1 ? "y" : "ies"} to ${adapter.name}...`));
+		console.log(
+			pc.bold(
+				`Syncing ${plan.items.length} entr${plan.items.length === 1 ? "y" : "ies"} to ${adapter.name}...`,
+			),
+		);
 		console.log("");
 
 		const results = await engine.executeSync(adapter, plan);
@@ -95,26 +87,49 @@ export const syncCommand = defineCommand({
 			return;
 		}
 
-		let success = 0;
-		let failed = 0;
-
-		for (let i = 0; i < results.length; i++) {
-			const result = results[i];
-			const item = plan.items[i];
-			const summary = item.entry.summary.slice(0, 60);
-
-			if (result.success) {
-				success++;
-				const ref = result.providerRef ? pc.dim(` → ${result.providerRef}`) : "";
-				console.log(`  ${pc.green("✓")} ${summary}${ref}`);
-			} else {
-				failed++;
-				console.log(`  ${pc.red("✗")} ${summary}`);
-				console.log(`    ${pc.red(result.error ?? "Unknown error")}`);
-			}
-		}
-
-		console.log("");
-		console.log(`${pc.green(String(success))} synced, ${pc.red(String(failed))} failed.`);
+		printSyncResults(results, plan);
 	},
 });
+
+function printDryRunPlan(plan: SyncPlan, json: boolean): void {
+	if (json) {
+		console.log(JSON.stringify(plan, null, 2));
+	} else {
+		console.log(pc.yellow("[dry-run]"), `Would sync ${plan.items.length} entries.`);
+		for (const item of plan.items) {
+			console.log(`  ${pc.cyan(item.suggestedMode)} ${item.entry.summary}`);
+		}
+	}
+}
+
+function printEmptyPlan(json: boolean): void {
+	if (json) {
+		console.log(JSON.stringify({ results: [], message: "Nothing to sync" }));
+	} else {
+		console.log(pc.dim("Nothing to sync. All entries are up to date."));
+	}
+}
+
+function printSyncResults(results: SyncResult[], plan: SyncPlan): void {
+	let success = 0;
+	let failed = 0;
+
+	for (let i = 0; i < results.length; i++) {
+		const result = results[i];
+		const item = plan.items[i];
+		const summary = item.entry.summary.slice(0, 60);
+
+		if (result.success) {
+			success++;
+			const ref = result.providerRef ? pc.dim(` → ${result.providerRef}`) : "";
+			console.log(`  ${pc.green("✓")} ${summary}${ref}`);
+		} else {
+			failed++;
+			console.log(`  ${pc.red("✗")} ${summary}`);
+			console.log(`    ${pc.red(result.error ?? "Unknown error")}`);
+		}
+	}
+
+	console.log("");
+	console.log(`${pc.green(String(success))} synced, ${pc.red(String(failed))} failed.`);
+}

@@ -4,16 +4,18 @@ import { worklogKindSchema, worklogSourceSchema } from "@tasktrace/core";
 import { z } from "zod";
 
 export function registerWorklogTools(server: McpServer, engine: WorklogEngine): void {
-	server.tool(
+	server.registerTool(
 		"worklog_add",
-		"Add a worklog event for the current work session",
 		{
-			description: z.string().describe("What was done"),
-			kind: worklogKindSchema.describe("Type of work"),
-			source: worklogSourceSchema.optional().describe("Event source (default: ai)"),
-			durationMinutes: z.number().positive().optional().describe("Time spent in minutes"),
-			taskRef: z.string().optional().describe("Task reference (e.g. CU-abc123)"),
-			tags: z.array(z.string()).optional().describe("Tags for categorization"),
+			description: "Add a worklog event for the current work session",
+			inputSchema: {
+				description: z.string().describe("What was done"),
+				kind: worklogKindSchema.describe("Type of work"),
+				source: worklogSourceSchema.optional().describe("Event source (default: ai)"),
+				durationMinutes: z.number().positive().optional().describe("Time spent in minutes"),
+				taskRef: z.string().optional().describe("Task reference (e.g. CU-abc123)"),
+				tags: z.array(z.string()).optional().describe("Tags for categorization"),
+			},
 		},
 		async (input) => {
 			const event = await engine.addEvent({
@@ -26,16 +28,18 @@ export function registerWorklogTools(server: McpServer, engine: WorklogEngine): 
 		},
 	);
 
-	server.tool(
+	server.registerTool(
 		"worklog_consolidate",
-		"Group recent events into worklog entries",
 		{
-			dryRun: z.boolean().optional().describe("Preview without saving"),
-			gapMinutes: z
-				.number()
-				.positive()
-				.optional()
-				.describe("Time gap to split entries (default: 240)"),
+			description: "Group recent events into worklog entries",
+			inputSchema: {
+				dryRun: z.boolean().optional().describe("Preview without saving"),
+				gapMinutes: z
+					.number()
+					.positive()
+					.optional()
+					.describe("Time gap to split entries (default: 240)"),
+			},
 		},
 		async (input) => {
 			const entries = await engine.consolidate({
@@ -57,15 +61,17 @@ export function registerWorklogTools(server: McpServer, engine: WorklogEngine): 
 		},
 	);
 
-	server.tool(
+	server.registerTool(
 		"worklog_attach_commit",
-		"Link a git commit to the most recent worklog entry",
 		{
-			sha: z.string().optional().describe("Commit SHA (defaults to HEAD)"),
-			entryId: z
-				.string()
-				.optional()
-				.describe("Entry ID (defaults to most recent on current branch)"),
+			description: "Link a git commit to the most recent worklog entry",
+			inputSchema: {
+				sha: z.string().optional().describe("Commit SHA (defaults to HEAD)"),
+				entryId: z
+					.string()
+					.optional()
+					.describe("Entry ID (defaults to most recent on current branch)"),
+			},
 		},
 		async (input) => {
 			const entry = await engine.attachCommit(input.sha, input.entryId);

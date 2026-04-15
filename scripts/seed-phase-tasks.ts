@@ -4,10 +4,13 @@
  */
 // Simple ULID-compatible ID: timestamp prefix + random suffix
 function makeId(): string {
-	return Date.now().toString(36).toUpperCase().padStart(10, "0") + Math.random().toString(36).slice(2, 12).toUpperCase().padStart(10, "0");
+	return (
+		Date.now().toString(36).toUpperCase().padStart(10, "0") +
+		Math.random().toString(36).slice(2, 12).toUpperCase().padStart(10, "0")
+	);
 }
-import { FileStorageProvider, WorklogEngine, loadConfig } from "../packages/core/src/index.js";
 import { ClickUpAdapter } from "../packages/adapter-clickup/src/index.js";
+import { FileStorageProvider, WorklogEngine, loadConfig } from "../packages/core/src/index.js";
 import type { WorklogEntry } from "../packages/core/src/index.js";
 
 const API_KEY = process.env.TASKTRACE_CLICKUP_API_KEY ?? "";
