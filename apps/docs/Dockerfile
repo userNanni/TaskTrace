@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Build context: monorepo root
-# Deploy: fly deploy --config apps/docs/fly.toml (from repo root)
+# Deploy: fly deploy --config apps/docs/fly.toml --dockerfile apps/docs/Dockerfile (from repo root)
 
 # ─── deps ────────────────────────────────────────────────────────────────────
 FROM oven/bun:1-alpine AS deps
