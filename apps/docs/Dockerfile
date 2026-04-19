@@ -1,12 +1,13 @@
 # syntax=docker/dockerfile:1
 # Build context: monorepo root
-# Deploy: fly deploy --config apps/docs/fly.toml --dockerfile apps/docs/Dockerfile (from repo root)
+# Deploy: fly deploy . --config apps/docs/fly.toml --dockerfile apps/docs/Dockerfile --ignorefile .dockerignore
 
 # ─── deps ────────────────────────────────────────────────────────────────────
 FROM oven/bun:1-alpine AS deps
 WORKDIR /app
 
-# Copy all workspace manifests so bun can resolve the full workspace graph
+# Copy workspace manifests so bun can resolve the full workspace graph
+# (bun install --frozen-lockfile requires all workspace package.json files)
 COPY package.json bun.lock ./
 COPY apps/docs/package.json ./apps/docs/package.json
 COPY packages/core/package.json ./packages/core/package.json

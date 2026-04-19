@@ -1,6 +1,7 @@
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import mdx from "fumadocs-mdx/vite";
+import { nitro } from "nitro/vite";
 import { defineConfig } from "vite";
 import * as sourceConfig from "./source.config";
 
@@ -12,6 +13,7 @@ export default defineConfig({
 		tanstackStart({
 			srcDirectory: "app",
 		}),
+		nitro(),
 		tailwindcss(),
 		mdx(sourceConfig),
 	],

@@ -14,8 +14,8 @@ packages/*/src/**/*.d.ts.map
 # Turbo
 .turbo/
 
-# Bun
-bun.lock
+# Bun workspace lockfile is intentionally committed (needed for reproducible installs)
+# bun.lock
 
 # IDE
 .vscode/

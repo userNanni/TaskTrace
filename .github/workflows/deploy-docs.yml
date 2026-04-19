@@ -6,6 +6,11 @@ on:
       - main
     paths:
       - "apps/docs/**"
+      - "packages/*/package.json"
+      - ".dockerignore"
+      - "bun.lock"
+      - "package.json"
+      - "turbo.json"
       - ".github/workflows/deploy-docs.yml"
   workflow_dispatch:
 
@@ -24,6 +29,6 @@ jobs:
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
       - name: Deploy
-        run: flyctl deploy --config apps/docs/fly.toml --remote-only
+        run: flyctl deploy . --config apps/docs/fly.toml --dockerfile apps/docs/Dockerfile --ignorefile .dockerignore --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
