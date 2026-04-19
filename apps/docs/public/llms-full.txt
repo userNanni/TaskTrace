@@ -1,0 +1,8 @@
+# TaskTrace — Full Documentation
+
+> Git-native developer worklog engine. Capture work, consolidate with AI agents, sync to task managers.
+
+This file contains the TaskTrace documentation index, optimized for LLM ingestion.
+Source: https://tasktrace.dev/docs | Index: https://tasktrace.dev/llms.txt
+
+---
