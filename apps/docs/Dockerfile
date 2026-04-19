@@ -26,7 +26,7 @@ COPY . .
 RUN bun run --filter @tasktrace/docs build
 
 # ─── runner ──────────────────────────────────────────────────────────────────
-FROM node:22-alpine AS runner
+FROM oven/bun:1-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -36,4 +36,4 @@ COPY --from=builder /app/apps/docs/.output ./.output
 
 EXPOSE 3000
 
-CMD ["node", ".output/server/index.mjs"]
+CMD ["bun", "run", ".output/server/index.mjs"]

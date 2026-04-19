@@ -24,11 +24,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - uses: superfly/flyctl-actions/setup-flyctl@v1.5
 
       - name: Deploy
-        run: flyctl deploy . --config apps/docs/fly.toml --dockerfile apps/docs/Dockerfile --ignorefile .dockerignore --remote-only
+        run: flyctl deploy . --config apps/docs/fly.toml --ignorefile .dockerignore --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
