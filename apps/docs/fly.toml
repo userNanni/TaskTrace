@@ -2,7 +2,7 @@ app = "tasktrace-docs"
 primary_region = "gru"
 
 [build]
-  dockerfile = "apps/docs/Dockerfile"
+  dockerfile = "Dockerfile"
 
 [http_service]
   internal_port = 3000
